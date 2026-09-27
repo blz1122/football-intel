@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.eslintcache
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+*.pem
+secrets/
+
+# 数据库
+*.db
+*.sqlite3
+pgdata/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 模型产物
+mlruns/
+models/*.pkl
+models/*.joblib
+
+# 日志
+logs/
+*.log

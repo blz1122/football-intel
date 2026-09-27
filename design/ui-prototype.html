@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Football Intelligence Platform · UI 原型</title>
+<style>
+  :root{
+    --bg:#0a0e17; --bg2:#0f1523; --panel:#121a2b; --panel2:#182238;
+    --line:#1e2a44; --line2:#263554;
+    --txt:#e8eefc; --sub:#8b98b8; --faint:#5a6780;
+    --accent:#2f6bff; --accent2:#38bdf8;
+    --up:#ff4d5e; --down:#22c58b;
+    --gold:#f5b342;
+    --home:#2f6bff; --draw:#5a6780; --away:#ff7a45;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--txt);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;min-height:100vh}
+  a{color:inherit;text-decoration:none}
+  ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#22304f;border-radius:4px}
+
+  /* ===== 顶栏 ===== */
+  .topbar{display:flex;align-items:center;gap:24px;height:56px;padding:0 24px;background:var(--bg2);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.5px;font-size:16px}
+  .logo .ball{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#4d8dff,#1d3f9e);display:flex;align-items:center;justify-content:center;font-size:14px}
+  .logo .ai{color:var(--accent2)}
+  .nav{display:flex;gap:4px;flex:1}
+  .nav a{padding:8px 14px;border-radius:6px;color:var(--sub);font-weight:600}
+  .nav a.active,.nav a:hover{color:var(--txt);background:var(--panel2)}
+  .live-pill{display:flex;align-items:center;gap:6px;background:#20111a;border:1px solid #4a2030;color:#ff6b81;padding:5px 12px;border-radius:20px;font-weight:700;font-size:12px}
+  .dot{width:7px;height:7px;border-radius:50%;background:#ff4d5e;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .clock{font-variant-numeric:tabular-nums;color:var(--sub);font-size:12px}
+
+  /* ===== 布局 ===== */
+  .wrap{max-width:1360px;margin:0 auto;padding:20px 24px 60px}
+  .grid{display:grid;gap:16px}
+  .grid.main{grid-template-columns:1fr 340px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .panel-h{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .panel-h h3{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .panel-h .tag{font-size:11px;color:var(--sub);background:var(--panel2);padding:3px 10px;border-radius:12px}
+  .panel-b{padding:16px 18px}
+
+  /* 状态 tab */
+  .tabs{display:flex;gap:6px;padding:12px 18px 0;flex-wrap:wrap}
+  .tab{padding:7px 16px;border-radius:8px;background:var(--panel2);color:var(--sub);font-weight:600;font-size:12.5px;cursor:pointer;border:1px solid transparent}
+  .tab.active{background:#16264d;color:#9db9ff;border-color:#28437f}
+
+  /* 比赛卡片 */
+  .match{display:grid;grid-template-columns:150px 1fr 220px 150px;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);transition:background .15s}
+  .match:hover{background:var(--panel2)}
+  .match:last-child{border-bottom:none}
+  .m-league{display:flex;align-items:center;gap:8px;color:var(--sub);font-size:12px}
+  .lg-ico{width:20px;height:20px;border-radius:4px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:10px;color:#9db9ff;font-weight:800;flex:none}
+  .m-time{font-variant-numeric:tabular-nums;font-weight:700}
+  .m-time.live{color:#ff6b81}
+  .m-teams{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .m-team{display:flex;align-items:center;gap:8px;font-weight:600;white-space:nowrap}
+  .t-ico{width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff}
+  .m-score{display:flex;align-items:center;gap:10px;justify-content:flex-end;font-variant-numeric:tabular-nums}
+  .sc{font-size:17px;font-weight:800;min-width:26px;text-align:center;background:var(--bg2);border:1px solid var(--line2);border-radius:6px;padding:2px 8px}
+  .sc.lead{color:#ffd166;border-color:#4d3d1c}
+  .m-prob{display:flex;flex-direction:column;gap:5px}
+  .prob-bar{height:6px;border-radius:3px;display:flex;overflow:hidden;background:var(--bg2)}
+  .prob-bar i{height:100%}
+  .prob-lbl{display:flex;justify-content:space-between;font-size:10.5px;color:var(--sub);font-variant-numeric:tabular-nums}
+  .m-status{text-align:right;font-size:12px;color:var(--sub)}
+  .m-status .st{display:inline-block;padding:3px 10px;border-radius:12px;font-weight:700;font-size:11px}
+  .st.live{background:#20111a;color:#ff6b81}.st.soon{background:#16264d;color:#9db9ff}.st.fin{background:var(--panel2);color:var(--sub)}
+
+  /* 右栏 */
+  .rank li{display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:13px}
+  .rank li:last-child{border-bottom:none}
+  .rk{width:22px;color:var(--faint,#5a6780);font-weight:800;text-align:center}
+  .rk.top{color:var(--gold)}
+  .rank .nm{flex:1;font-weight:600}
+  .rank .pb{font-variant-numeric:tabular-nums;font-weight:800;color:#9db9ff}
+  .delta{font-size:11px;font-weight:700}
+  .delta.up{color:var(--up)}.delta.down{color:var(--down)}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .kpi .l{color:var(--sub);font-size:12px;margin-bottom:6px}
+  .kpi .v{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+  .kpi .v small{font-size:12px;color:var(--sub);font-weight:600}
+  .kpi .t{font-size:11px;margin-top:4px;font-weight:700}
+  .t.up{color:var(--up)}.t.down{color:var(--down)}
+
+  /* 比赛详情头 */
+  .md-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px;padding:26px 30px;background:linear-gradient(180deg,#131d33,#101728);border-bottom:1px solid var(--line)}
+  .md-team{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .md-team .big{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;color:#fff}
+  .md-team .nm{font-weight:800;font-size:15px}
+  .md-team .pos{font-size:11.5px;color:var(--sub)}
+  .md-mid{text-align:center}
+  .md-score{font-size:44px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:2px}
+  .md-minute{margin-top:4px;display:inline-flex;align-items:center;gap:7px;color:#ff6b81;font-weight:800;font-size:13px;background:#20111a;border:1px solid #4a2030;padding:4px 12px;border-radius:14px}
+  .md-league{text-align:center;color:var(--sub);font-size:12px;margin-bottom:8px}
+
+  /* 详情网格 */
+  .grid.detail{grid-template-columns:1.35fr 1fr;margin-top:16px}
+  .stat-row{display:grid;grid-template-columns:52px 1fr 90px 1fr 52px;align-items:center;gap:10px;margin-bottom:12px;font-size:12.5px;font-variant-numeric:tabular-nums}
+  .stat-row .n{color:var(--sub)}
+  .stat-row .lbl{text-align:center;color:var(--txt);font-weight:600}
+  .duel{height:7px;border-radius:4px;background:var(--bg2);position:relative;overflow:hidden}
+  .duel i{position:absolute;top:0;bottom:0}
+  .duel.l i{right:0;background:var(--home)}
+  .duel.r i{left:0;background:var(--away)}
+  .chart-box{height:240px}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--sub);margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+  /* 蒙太卡洛热力矩阵 */
+  .mc-grid{display:grid;grid-template-columns:auto repeat(6,1fr);gap:3px;font-size:11px;text-align:center}
+  .mc-cell{padding:8px 4px;border-radius:5px;font-variant-numeric:tabular-nums;font-weight:700;color:#dfe8ff}
+  .mc-h{color:var(--sub);font-weight:600;display:flex;align-items:center;justify-content:center}
+
+  /* AI 报告 */
+  .ai-report{line-height:1.75;font-size:13.5px;color:#c6d2ec}
+  .ai-report h4{color:var(--txt);font-size:13px;margin:12px 0 6px;display:flex;align-items:center;gap:8px}
+  .ai-report h4:first-child{margin-top:0}
+  .ai-chip{display:inline-block;font-size:11px;padding:2px 10px;border-radius:10px;background:#16264d;color:#9db9ff;border:1px solid #28437f;margin:2px 4px 2px 0}
+  .risk{background:#1d1220;border:1px solid #4a2030;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:12.5px;color:#ffb3c0}
+
+  footer{color:var(--faint,#5a6780);text-align:center;font-size:12px;padding:26px 0 8px}
+  @media(max-width:1020px){.grid.main,.grid.detail{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.match{grid-template-columns:120px 1fr 90px;}.m-prob,.m-status{display:none}}
+</style>
+</head>
+<body>
+
+<!-- ============ 顶栏 ============ -->
+<header class="topbar">
+  <div class="logo"><span class="ball">⚽</span>FOOT<span class="ai">INTEL</span></div>
+  <nav class="nav">
+    <a class="active" href="#">Dashboard</a><a href="#">比赛</a><a href="#">球队</a><a href="#">球员</a><a href="#">AI 预测</a><a href="#">模拟器</a>
+  </nav>
+  <div class="live-pill"><span class="dot"></span>3 场进行中</div>
+  <div class="clock" id="clock">2026-09-27 SUN</div>
+</header>
+
+<div class="wrap">
+
+  <!-- ============ KPI ============ -->
+  <div class="kpis">
+    <div class="kpi"><div class="l">今日比赛</div><div class="v">42</div><div class="t up">▲ 5 大联赛 24 场</div></div>
+    <div class="kpi"><div class="l">AI 预测准确率 (7日)</div><div class="v">63.4<small>%</small></div><div class="t up">▲ 1.8% vs 上周</div></div>
+    <div class="kpi"><div class="l">模型 Brier Score</div><div class="v">0.192</div><div class="t down">▼ 越低越好 · 优于基线</div></div>
+    <div class="kpi"><div class="l">WebSocket 延迟</div><div class="v">128<small>ms</small></div><div class="t up">▲ 正常</div></div>
+  </div>
+
+  <div class="grid main">
+    <!-- ============ 左：比赛中心 ============ -->
+    <section class="panel">
+      <div class="panel-h"><h3>⚡ 实时足球数据中心</h3><span class="tag">2026-09-27 · 英超 / 西甲 / 意甲 / 德甲</span></div>
+      <div class="tabs">
+        <div class="tab active">进行中 (3)</div><div class="tab">即将开始 (18)</div><div class="tab">今日全部 (42)</div><div class="tab">已结束 (21)</div>
+      </div>
+
+      <!-- 进行中 1 -->
+      <div class="match">
+        <div><div class="m-league"><span class="lg-ico">EPL</span>英超 · 第7轮</div>
+          <div class="m-time live">LIVE 65'</div></div>
+        <div class="m-teams">
+          <div class="m-team"><span class="t-ico" style="background:#c8102e">LIV</span>Liverpool</div>
+          <div class="m-team"><span class="t-ico" style="background:#034694">CHE</span>Chelsea</div>
+        </div>
+        <div class="m-score"><span class="sc lead">1</span><span class="sc">0</span></div>
+        <div class="m-prob">
+          <div class="prob-bar"><i style="width:68%;background:var(--home)"></i><i style="width:22%;background:var(--draw)"></i><i style="width:10%;background:var(--away)"></i></div>
+          <div class="prob-lbl"><span>主 68%</span><span>平 22%</span><span>客 10%</span></div>
+        </div>
+        <div class="m-status"><span class="st live">● 实时</span><div style="margin-top:6px">控球 58% · xG 1.72</div></div>
+      </div>
+
+      <!-- 进行中 2 -->
+      <div class="match">
+        <div><div class="m-league"><span class="lg-ico">LAL</span>西甲 · 第7轮</div>
+          <div class="m-time live">LIVE 38'</div></div>
+        <div class="m-teams">
+          <div class="m-team"><span class="t-ico" style="background:#a50044">BAR</span>Barcelona</div>
+          <div class="m-team"><span class="t-ico" style="background:#ee8707">VAL</span>Valencia</div>
+        </div>
+        <div class="m-score"><span class="sc lead">2</span><span class="sc">1</span></div>
+        <div class="m-prob">
+          <div class="prob-bar"><i style="width:61%;background:var(--home)"></i><i style="width:26%;background:var(--draw)"></i><i style="width:13%;background:var(--away)"></i></div>
+          <div class="prob-lbl"><span>主 61%</span><span>平 26%</span><span>客 13%</span></div>
+        </div>
+        <div class="m-status"><span class="st live">● 实时</span><div style="margin-top:6px">控球 64% · xG 1.31</div></div>
+      </div>
+
+      <!-- 进行中 3 -->
+      <div class="match">
+        <div><div class="m-league"><span class="lg-ico">SEA</span>德甲 · 第6轮</div>
+          <div class="m-time live">LIVE HT</div></div>
+        <div class="m-teams">
+          <div class="m-team"><span class="t-ico" style="background:#d20515">BAY</span>Bayern</div>
+          <div class="m-team"><span class="t-ico" style="background:#000000">SCB</span>Leverkusen</div>
+        </div>
+        <div class="m-score"><span class="sc">0</span><span class="sc">0</span></div>
+        <div class="m-prob">
+          <div class="prob-bar"><i style="width:52%;background:var(--home)"></i><i style="width:30%;background:var(--draw)"></i><i style="width:18%;background:var(--away)"></i></div>
+          <div class="prob-lbl"><span>主 52%</span><span>平 30%</span><span>客 18%</span></div>
+        </div>
+        <div class="m-status"><span class="st live">● 中场</span><div style="margin-top:6px">控球 55% · xG 0.68</div></div>
+      </div>
+
+      <!-- 即将开始 -->
+      <div class="match">
+        <div><div class="m-league"><span class="lg-ico">EPL</span>英超 · 第7轮</div>
+          <div class="m-time">17:30</div></div>
+        <div class="m-teams">
+          <div class="m-team"><span class="t-ico" style="background:#6cabdd">MCI</span>Man City</div>
+          <div class="m-team"><span class="t-ico" style="background:#ef0107">ARS</span>Arsenal</div>
+        </div>
+        <div class="m-score"><span style="color:var(--sub);font-size:12px">vs</span></div>
+        <div class="m-prob">
+          <div class="prob-bar"><i style="width:45%;background:var(--home)"></i><i style="width:30%;background:var(--draw)"></i><i style="width:25%;background:var(--away)"></i></div>
+          <div class="prob-lbl"><span>主 45%</span><span>平 30%</span><span>客 25%</span></div>
+        </div>
+        <div class="m-status"><span class="st soon">AI 焦点战</span><div style="margin-top:6px">Elo 差 42</div></div>
+      </div>
+
+      <!-- 已结束 -->
+      <div class="match">
+        <div><div class="m-league"><span class="lg-ico">SEA</span>意甲 · 第6轮</div>
+          <div class="m-time">完赛</div></div>
+        <div class="m-teams">
+          <div class="m-team"><span class="t-ico" style="background:#0068a8">NAP</span>Napoli</div>
+          <div class="m-team"><span class="t-ico" style="background:#003c82">JUV</span>Juventus</div>
+        </div>
+        <div class="m-score"><span class="sc">2</span><span class="sc lead">1</span></div>
+        <div class="m-prob">
+          <div class="prob-bar"><i style="width:47%;background:var(--home)"></i><i style="width:31%;background:var(--draw)"></i><i style="width:22%;background:var(--away)"></i></div>
+          <div class="prob-lbl"><span>预测 47/31/22</span><span></span><span>✔ 命中</span></div>
+        </div>
+        <div class="m-status"><span class="st fin">FT</span><div style="margin-top:6px">xG 1.9 : 1.1</div></div>
+      </div>
+    </section>
+
+    <!-- ============ 右：AI 排行 ============ -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <section class="panel">
+        <div class="panel-h"><h3>🤖 AI 预测排行 · 今日置信度 TOP</h3></div>
+        <ul class="rank">
+          <li><span class="rk top">1</span><span class="nm">Bayern 胜 (vs Union)</span><span class="pb">78%</span><span class="delta up">▲</span></li>
+          <li><span class="rk top">2</span><span class="nm">Real 胜 (vs Getafe)</span><span class="pb">74%</span><span class="delta up">▲</span></li>
+          <li><span class="rk top">3</span><span class="nm">PSG 大2.5 (vs Nice)</span><span class="pb">71%</span><span class="delta down">▼</span></li>
+          <li><span class="rk">4</span><span class="nm">Man City 胜 (vs Arsenal)</span><span class="pb">45%</span><span class="delta">—</span></li>
+          <li><span class="rk">5</span><span class="nm">Inter 平 (vs Milan)</span><span class="pb">34%</span><span class="delta down">▼</span></li>
+          <li><span class="rk">6</span><span class="nm">Napoli BTTS: 是</span><span class="pb">66%</span><span class="delta up">▲</span></li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <div class="panel-h"><h3>🔥 热门赛事</h3><span class="tag">按关注度</span></div>
+        <ul class="rank">
+          <li><span class="rk top">🔥</span><span class="nm">Man City vs Arsenal</span><span class="pb">17:30</span></li>
+          <li><span class="rk">2</span><span class="nm">Inter vs Milan</span><span class="pb">21:45</span></li>
+          <li><span class="rk">3</span><span class="nm">Real vs Getafe</span><span class="pb">22:00</span></li>
+          <li><span class="rk">4</span><span class="nm">Dortmund vs Leipzig</span><span class="pb">23:30</span></li>
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============ 比赛详情页（原型段） ============ -->
+  <div style="margin:26px 0 12px;font-size:16px;font-weight:800">▸ 比赛详情页原型 <span style="font-size:12px;color:var(--sub);font-weight:600">Liverpool 1-0 Chelsea · LIVE 65'</span></div>
+
+  <section class="panel">
+    <div class="md-head">
+      <div class="md-team">
+        <div class="big" style="background:#c8102e">LIV</div>
+        <div class="nm">Liverpool</div><div class="pos">英超第 1 · Elo 1943 · TPI 88.2</div>
+      </div>
+      <div class="md-mid">
+        <div class="md-league">英超 · 第7轮 · Anfield</div>
+        <div class="md-score">1 - 0</div>
+        <div class="md-minute"><span class="dot"></span>65' 实时</div>
+      </div>
+      <div class="md-team">
+        <div class="big" style="background:#034694">CHE</div>
+        <div class="nm">Chelsea</div><div class="pos">英超第 5 · Elo 1878 · TPI 79.6</div>
+      </div>
+    </div>
+
+    <div class="grid detail">
+      <!-- 左列：概率曲线 + 技术统计 -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="panel" style="border:none">
+          <div class="panel-h"><h3>📈 实时胜率变化曲线</h3><span class="tag">模型 dc-xgb-v0.1</span></div>
+          <div class="panel-b">
+            <div class="chart-box"><svg id="winprob" width="100%" height="240" preserveAspectRatio="none"></svg></div>
+            <div class="legend">
+              <span><i style="background:var(--home)"></i>Liverpool 胜</span>
+              <span><i style="background:var(--draw)"></i>平局</span>
+              <span><i style="background:var(--away)"></i>Chelsea 胜</span>
+              <span style="margin-left:auto">⚽ 27' Salah 进球 → 概率跳变</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="border:none">
+          <div class="panel-h"><h3>📊 技术统计（实时 65'）</h3></div>
+          <div class="panel-b" id="stats"></div>
+        </div>
+
+        <div class="panel" style="border:none">
+          <div class="panel-h"><h3>🎯 射门地图（Shot Map · xG）</h3></div>
+          <div class="panel-b">
+            <svg id="shotmap" viewBox="0 0 640 300" width="100%" style="background:#0d3b2e;border-radius:8px"></svg>
+            <div class="legend">
+              <span><i style="background:var(--home)"></i>Liverpool 射门（圆=进球）</span>
+              <span><i style="background:var(--away)"></i>Chelsea 射门</span>
+              <span>圆半径 ∝ xG 值</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右列：雷达 + Monte Carlo + AI 报告 -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="panel" style="border:none">
+          <div class="panel-h"><h3>🕸️ 球队能力雷达</h3></div>
+          <div class="panel-b">
+            <svg id="radar" viewBox="0 0 320 260" width="100%"></svg>
+            <div class="legend">
+              <span><i style="background:var(--home)"></i>Liverpool</span>
+              <span><i style="background:var(--away)"></i>Chelsea</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="border:none">
+          <div class="panel-h"><h3>🎲 Monte Carlo · 10,000 次模拟</h3><span class="tag">比分概率 TOP</span></div>
+          <div class="panel-b">
+            <div class="mc-grid" id="mc"></div>
+            <div class="legend" style="margin-top:12px">
+              <span>胜 68% · 平 22% · 负 10%</span>
+              <span style="margin-left:auto">大2.5球 58% · BTTS 61%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="border:none">
+          <div class="panel-h"><h3>📝 AI 比赛报告</h3><span class="tag">自动生成 · 65' 更新</span></div>
+          <div class="panel-b ai-report">
+            <h4>🔑 比赛关键点</h4>
+            Liverpool 通过左路 Salah–Robertson 组合持续制造超额威胁（左侧进攻占比 41%），
+            第 27 分钟角球二次进攻转化进球。中场 Gravenberch 完成全场最高 7 次拦截，
+            切断 Chelsea 由守转攻的第一出球线路。
+            <h4>⚔️ 战术分析</h4>
+            <span class="ai-chip">中场控制 58:42</span><span class="ai-chip">边路进攻 左强右弱</span><span class="ai-chip">高位压迫 PPDA 8.2</span><span class="ai-chip">反击 xG 0.4</span><br>
+            Chelsea 改打 4-2-3-1 后中路渗透改善，但 65 分钟后体能下降明显，
+            高位防线身后空间是被打穿的最大隐患。
+            <h4>⚠️ 风险提醒</h4>
+            <div class="risk">
+              • 被逆转风险：<b>12%</b>（Chelsea 近5场 3 次下半场追平）<br>
+              • 红牌影响：Liverpool Van Dijk 已累积 1 黄，若失位中卫将使胜率 -9pp<br>
+              • 防守压力指数：Liverpool 门将扑救 4 次， xGA 趋势上行
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Football Intelligence Platform · Phase 1 UI Prototype · 深色科技风 · SofaScore/Opta/Bloomberg Terminal 灵感 · 数据为演示用模拟数据</footer>
+</div>
+
+<script>
+/* ================= 实时胜率曲线 ================= */
+(function(){
+  const svg=document.getElementById('winprob');
+  const W=640,H=240,P={l:34,r:10,t:12,b:24};
+  // 分钟: [home,draw,away] —— 27分钟进球跳变
+  const data=[[0,.38,.32,.30],[10,.40,.31,.29],[20,.43,.30,.27],[27,.62,.26,.12],[35,.64,.25,.11],[45,.65,.24,.11],[55,.67,.23,.10],[65,.68,.22,.10],[75,.76,.17,.07],[85,.84,.12,.04],[90,.88,.09,.03]];
+  const x=m=>P.l+(W-P.l-P.r)*m/90, y=v=>P.t+(H-P.t-P.b)*(1-v);
+  let s='';
+  for(let g=0;g<=1;g+=.25) s+=`<line x1="${P.l}" y1="${y(g)}" x2="${W-P.r}" y2="${y(g)}" stroke="#1e2a44" stroke-width="1"/><text x="${P.l-6}" y="${y(g)+4}" fill="#5a6780" font-size="10" text-anchor="end">${Math.round(g*100)}%</text>`;
+  [0,15,30,45,60,75,90].forEach(m=>s+=`<text x="${x(m)}" y="${H-8}" fill="#5a6780" font-size="10" text-anchor="middle">${m}'</text>`);
+  const cols=['#2f6bff','#5a6780','#ff7a45'];
+  [['home',2],['draw',1],['away',3]].forEach((_,i)=>{
+    const pts=data.map(d=>`${x(d[0])},${y(d[i+1])}`).join(' ');
+    s+=`<polyline points="${pts}" fill="none" stroke="${cols[i]}" stroke-width="2"/>`;
+  });
+  // 27' 进球事件
+  s+=`<line x1="${x(27)}" y1="${P.t}" x2="${x(27)}" y2="${H-P.b}" stroke="#f5b342" stroke-dasharray="3 3" stroke-width="1"/><text x="${x(27)+4}" y="${P.t+10}" fill="#f5b342" font-size="10">⚽ 27' GOAL</text>`;
+  const last=data[data.length-1];
+  ['home','draw','away'].forEach((k,i)=>s+=`<circle cx="${x(65)}" cy="${y(last[i+1])}" r="3.5" fill="${cols[i]}"/>`);
+  svg.innerHTML=s;
+})();
+
+/* ================= 技术统计对抗条 ================= */
+(function(){
+  const rows=[['控球率','58%','42%',58,42],['射门','14','7',66,34],['射正','6','2',75,25],['xG','1.72','0.61',74,26],['危险进攻','48','22',69,31],['角球','7','3',70,30],['犯规','8','12',40,60],['黄牌','1','3',25,75]];
+  document.getElementById('stats').innerHTML=rows.map(r=>{
+    const t=r[3]+r[4], lw=r[3]/t*100;
+    return `<div class="stat-row"><span class="n">${r[1]}</span>
+      <span class="duel l"><i style="width:${lw}%"></i></span>
+      <span class="lbl">${r[0]}</span>
+      <span class="duel r"><i style="width:${100-lw}%"></i></span>
+      <span class="n" style="text-align:right">${r[2]}</span></div>`;
+  }).join('');
+})();
+
+/* ================= 射门地图 ================= */
+(function(){
+  const svg=document.getElementById('shotmap');
+  const shots=[[150,150,.12,1],[210,90,.06,0],[190,210,.09,1],[120,120,.34,2],[240,160,.05,0],[170,60,.11,0],[100,180,.19,1],
+               [490,140,.07,0],[540,170,.10,0],[430,90,.05,0],[560,120,.15,0],[470,200,.08,0]];
+  let s=`<rect x="20" y="40" width="600" height="220" fill="none" stroke="#2f7d5f" stroke-width="2"/>
+    <line x1="320" y1="40" x2="320" y2="260" stroke="#2f7d5f" stroke-width="1.5"/>
+    <rect x="20" y="105" width="90" height="90" fill="none" stroke="#2f7d5f"/>
+    <rect x="530" y="105" width="90" height="90" fill="none" stroke="#2f7d5f"/>
+    <rect x="20" y="140" width="40" height="20" fill="none" stroke="#2f7d5f"/>
+    <rect x="580" y="140" width="40" height="20" fill="none" stroke="#2f7d5f"/>`;
+  shots.forEach(([cx,cy,xg,side])=>{
+    const r=5+xg*26, col=side===2?'#ffd166':(side<2?'#4d8dff':'#ff7a45');
+    s+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}" fill-opacity=".55" stroke="${col}"/>`;
+  });
+  svg.innerHTML=s;
+})();
+
+/* ================= 能力雷达 ================= */
+(function(){
+  const svg=document.getElementById('radar');
+  const cx=160,cy=132,R=95,n=6;
+  const axes=['攻击','防守','控球','压迫','效率','状态'];
+  const liv=[92,84,78,86,88,90], che=[74,71,69,76,66,72];
+  const pt=(i,v)=>{const a=-Math.PI/2+i*2*Math.PI/n;return [cx+Math.cos(a)*R*v/100, cy+Math.sin(a)*R*v/100]};
+  let s='';
+  [25,50,75,100].forEach(g=>{let p=[];for(let i=0;i<n;i++)p.push(pt(i,g).join(','));
+    s+=`<polygon points="${p.join(' ')}" fill="none" stroke="#1e2a44"/>`});
+  for(let i=0;i<n;i++){const [x2,y2]=pt(i,100);s+=`<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="#1e2a44"/>`;
+    const [lx,ly]=pt(i,124);s+=`<text x="${lx}" y="${ly+4}" fill="#8b98b8" font-size="11" text-anchor="middle">${axes[i]}</text>`}
+  const poly=(vals,col)=>{const p=vals.map((v,i)=>pt(i,v).join(','));return `<polygon points="${p.join(' ')}" fill="${col}" fill-opacity=".22" stroke="${col}" stroke-width="2"/>`};
+  s+=poly(liv,'#4d8dff')+poly(che,'#ff7a45');
+  svg.innerHTML=s;
+})();
+
+/* ================= Monte Carlo 热力矩阵 ================= */
+(function(){
+  // [主队进球][客队进球] 概率(%)
+  const m=[[11,9,4,1],[19,14,6,2],[9,10,5,2],[3,4,3,1],[1,1,1,0.4],[0.4,0.4,0.3,0.1]];
+  const cols=['#16264d','#1e3a6e','#2850a8','#3566cf','#4d8dff','#7aa9ff'];
+  let h='<div class="mc-h"></div>';
+  for(let a=0;a<=5;a++)h+=`<div class="mc-h">${a}</div>`;
+  document.getElementById('mc').innerHTML=h+m.map((row,hi)=>
+    `<div class="mc-h">${hi}</div>`+row.map((p,ai)=>
+      `<div class="mc-cell" style="background:${cols[Math.min(5,Math.floor(p/4))]}">${p<1?'':p+'%'}</div>`).join('')).join('');
+})();
+
+/* 时钟 */
+setInterval(()=>{const d=new Date();document.getElementById('clock').textContent=
+  d.toISOString().slice(0,10)+' '+d.toTimeString().slice(0,8)},1000);
+</script>
+</body>
+</html>
