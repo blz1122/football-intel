@@ -78,7 +78,9 @@ class EventOut(BaseModel):
     minute: int
     side: str
     type: str
+    player_id: int | None = None
     player: str | None
+    related_player_id: int | None = None
     related_player: str | None
     detail: str | None
 
@@ -190,3 +192,33 @@ class PlayerProfile(BaseModel):
     team: TeamBrief
     ai_rating: float
     season_stats: dict
+
+
+# ---------------- 列表页（球队/球员浏览） ----------------
+
+class TeamListItem(BaseModel):
+    id: int
+    name: str
+    name_en: str
+    short_name: str
+    color: str
+    elo_rating: float
+    stadium: str | None
+    league: LeagueBrief
+    tpi: float | None = None
+
+
+class PlayerListItem(BaseModel):
+    id: int
+    name: str
+    name_en: str
+    position: str
+    number: int
+    age: int
+    ai_rating: float
+    season_stats: dict
+    team_id: int
+    team_name: str
+    team_short: str
+    team_color: str
+    league_short: str

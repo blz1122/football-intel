@@ -28,6 +28,16 @@ export const api = {
   systemStatus: () => get<Record<string, unknown>>(`/system/status`),
   teamProfile: (id: number) => get<import("./types").TeamProfile>(`/teams/${id}`),
   playerProfile: (id: number) => get<import("./types").PlayerProfile>(`/players/${id}`),
+  teamList: (leagueId?: number) =>
+    get<import("./types").TeamListItem[]>(`/teams${leagueId ? `?league_id=${leagueId}` : ""}`),
+  playerList: (params?: { league_id?: number; team_id?: number; position?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.league_id) qs.set("league_id", String(params.league_id));
+    if (params?.team_id) qs.set("team_id", String(params.team_id));
+    if (params?.position) qs.set("position", params.position);
+    const s = qs.toString();
+    return get<import("./types").PlayerListItem[]>(`/players${s ? `?${s}` : ""}`);
+  },
   tpiLeaderboard: (leagueId?: number) =>
     get<Record<string, unknown>[]>(`/leaderboard/tpi${leagueId ? `?league_id=${leagueId}` : ""}`),
 };

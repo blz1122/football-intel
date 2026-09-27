@@ -435,3 +435,85 @@ def seed_all(db: Session, force: bool = False) -> bool:
         db.flush()
     db.commit()
     return True
+
+
+def ensure_upcoming_matches(db: Session) -> int:
+    """滚动补赛：未完赛比赛不足时，按当前时间补一轮赛程。
+
+    场次从种子阶段一次性生成，若程序连续运行数小时，全部比赛会踢完、
+    平台进入"无实时比赛"的空窗。此函数在广播循环中周期调用：
+    未完赛（kickoff 晚于 now-115min）场次 < 阈值时，为每个联赛补
+    2 场进行中 + 2 场未开始，保证任何时刻都有实时比赛可看。
+    返回新建场次。
+    """
+    now = datetime.now(UTC)
+    window_start = now - timedelta(minutes=115)   # 一场球从开球到完赛约 113 分钟
+    active = db.query(Match).filter(Match.kickoff_at > window_start).count()
+    if active >= 10:
+        return 0
+
+    # 已被未完赛比赛占用的球队，避免同一球队同时踢两场
+    busy: set[int] = set()
+    for tid, in db.query(Match.home_team_id).filter(Match.kickoff_at > window_start):
+        busy.add(tid)
+    for tid, in db.query(Match.away_team_id).filter(Match.kickoff_at > window_start):
+        busy.add(tid)
+
+    rng = random.Random(int(now.timestamp()) ^ 20260927)
+    created = 0
+    match_no = db.query(Match).count()
+
+    for league in db.query(League).all():
+        teams = db.query(Team).filter(Team.league_id == league.id).all()
+        rng.shuffle(teams)
+        for offset in (-25, -60, +30, +150):
+            cands = [t for t in teams if t.id not in busy]
+            if len(cands) < 2:
+                break
+            home, away = cands[0], cands[1]
+            busy.update({home.id, away.id})
+            match_no += 1
+            m = Match(
+                league_id=league.id, home_team_id=home.id, away_team_id=away.id,
+                kickoff_at=now + timedelta(minutes=offset),
+                venue=home.stadium, round=f"Regular Season - {10 + match_no % 4}",
+                sim_seed=rng.randint(1, 10**9),
+            )
+            db.add(m)
+            db.flush()
+
+            ratings = {r.team_id: r for r in db.query(TeamRating).filter(
+                TeamRating.team_id.in_([home.id, away.id])).all()}
+            form = lambda t: (  # noqa: E731
+                (ratings[t.id].breakdown or {}).get("season", {}).get("wins", 6) / 20.0
+                if t.id in ratings else 0.5
+            )
+            pred = prematch(home.elo_rating, away.elo_rating,
+                            form_home=form(home), form_away=form(away))
+            try:
+                from app.ml.train import blend, predict_proba
+
+                ml = predict_proba(
+                    home.elo_rating - away.elo_rating,
+                    form(home), form(away),
+                )
+                pred = blend(pred, ml)
+            except Exception as e:
+                pred["model_version"] = "dc-only-v0.1"
+                print(f"[topup] ML blend skipped: {e}")
+            db.add(MatchPrediction(match_id=m.id, **pred))
+
+            squads = {
+                "home": db.query(Player).filter(Player.team_id == home.id).all(),
+                "away": db.query(Player).filter(Player.team_id == away.id).all(),
+            }
+            db.add_all(generate_events(
+                random.Random(m.sim_seed), m, squads,
+                pred["lambda_home"], pred["lambda_away"],
+            ))
+            created += 1
+
+    db.commit()
+    if created:
+        print(f"[topup] 补赛 {created} 场（各联赛 2 进行中 + 2 未开始）")
+    return created

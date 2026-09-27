@@ -6,6 +6,21 @@ import { useEffect, useRef, useState } from "react";
 const WS_URL =
   process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/api/v1/ws/matches";
 
+// WebSocket 地址：
+// 1. 显式配置 NEXT_PUBLIC_WS_URL 优先
+// 2. 打包版（exe 同源托管/局域网 IP 访问）自动用当前页面的 host，避免系统代理劫持 localhost
+// 3. 开发模式（3000 端口，Next 不转发 WS）回退直连 8000
+function wsUrl(): string {
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+  if (typeof window !== "undefined") {
+    const { protocol, hostname, port } = window.location;
+    if (port && port !== "3000") {
+      return `${protocol === "https:" ? "wss" : "ws"}://${hostname}:${port}/api/v1/ws/matches`;
+    }
+  }
+  return WS_URL;
+}
+
 export interface LiveSnapshot {
   match_id: number;
   status: string;
@@ -30,7 +45,7 @@ export function useLiveSocket(subscribeAll = false, matchId?: number) {
 
     const connect = () => {
       if (closed) return;
-      const ws = new WebSocket(WS_URL);
+      const ws = new WebSocket(wsUrl());
       wsRef.current = ws;
 
       ws.onopen = () => {

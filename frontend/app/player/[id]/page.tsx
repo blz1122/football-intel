@@ -35,9 +35,10 @@ export default function PlayerPage() {
 
   return (
     <div>
-      <Link href={`/team/${p.team.id}`} className="mb-3 inline-block text-xs font-semibold text-sub hover:text-txt">
-        ← 返回 {p.team.name}
-      </Link>
+      <div className="mb-3 flex gap-4 text-xs font-semibold text-sub">
+        <Link href="/players" className="hover:text-txt">← 返回球员列表</Link>
+        <Link href={`/team/${p.team.id}`} className="hover:text-txt">← 返回 {p.team.name}</Link>
+      </div>
 
       <section className="flex items-center gap-6 rounded-xl border border-line px-6 py-6"
         style={{ background: "linear-gradient(180deg,#131d33,#101728)" }}>

@@ -8,8 +8,8 @@ import "./globals.css";
 const NAV = [
   { href: "/", label: "Dashboard", icon: "📊" },
   { href: "/#scheduled", label: "比赛", icon: "⚽" },
-  { href: "/team/3", label: "球队", icon: "🛡️" },
-  { href: "/player/51", label: "球员", icon: "👤" },
+  { href: "/teams", label: "球队", icon: "🛡️" },
+  { href: "/players", label: "球员", icon: "👤" },
   { href: "/#top", label: "AI 预测", icon: "🤖" },
 ];
 
@@ -27,7 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </Link>
           <nav className="hidden flex-1 gap-1 md:flex">
             {NAV.map((n, i) => {
-              const active = i === 0 && pathname === "/";
+              const active =
+                (i === 0 && pathname === "/") ||
+                (n.href !== "/" && !n.href.startsWith("/#") && pathname.startsWith(n.href));
               return (
                 <Link
                   key={n.label}

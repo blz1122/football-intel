@@ -89,6 +89,18 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+def _topup_matches() -> None:
+    """滚动补赛（在工作线程中执行，避免阻塞事件循环）。"""
+    from app.core.db import SessionLocal
+    from app.simulator import ensure_upcoming_matches
+
+    db = SessionLocal()
+    try:
+        ensure_upcoming_matches(db)
+    finally:
+        db.close()
+
+
 def _live_snapshots() -> list[dict]:
     """在工作线程中计算进行中比赛的实时快照（避免阻塞事件循环）。"""
     from datetime import datetime, timedelta, timezone
@@ -137,11 +149,15 @@ async def _broadcast_loop() -> None:
     beats = 0
     while True:
         try:
+            beats += 1
+            # 滚动补赛：每 12 轮（约 1 分钟）检查一次，未完赛场次不足时自动补一轮
+            if beats % 12 == 0:
+                with contextlib.suppress(Exception):
+                    await asyncio.to_thread(_topup_matches)
             snaps = await asyncio.to_thread(_live_snapshots)
             live_ids = {s["match_id"] for s in snaps}
             manager.latest = {s["match_id"]: s for s in snaps}
             sent = 0
-            beats += 1
 
             # 变更判定每轮只做一次（不能放进客户端循环——否则第一个客户端
             # 会"消费"掉变更标记，后续客户端永远收不到）

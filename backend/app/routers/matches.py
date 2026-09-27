@@ -211,7 +211,9 @@ def match_detail(match_id: int, db: Session = Depends(get_db)):
         events=[
             EventOut(
                 minute=e.minute, side=e.side, type=e.type,
-                player=_name(e.player_id), related_player=_name(e.related_player_id),
+                player_id=e.player_id, player=_name(e.player_id),
+                related_player_id=e.related_player_id,
+                related_player=_name(e.related_player_id),
                 detail=e.detail,
             )
             for e in events

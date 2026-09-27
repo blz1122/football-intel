@@ -62,7 +62,10 @@ export default function TeamPage() {
 
   return (
     <div>
-      <Link href="/" className="mb-3 inline-block text-xs font-semibold text-sub hover:text-txt">← 返回 Dashboard</Link>
+      <div className="mb-3 flex gap-4 text-xs font-semibold text-sub">
+        <Link href="/teams" className="hover:text-txt">← 返回球队列表</Link>
+        <Link href="/" className="hover:text-txt">← 返回 Dashboard</Link>
+      </div>
 
       {/* 头部 */}
       <section className="flex items-center gap-6 rounded-xl border border-line px-6 py-6"

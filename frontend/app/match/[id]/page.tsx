@@ -43,7 +43,22 @@ function Timeline({ events, homeColor, awayColor }: { events: EventOut[]; homeCo
           <div className={`flex w-1/2 items-center gap-2 ${e.side === "home" ? "justify-end pr-4" : "justify-start pl-4"}`}>
             {e.side === "away" && <span>{EVENT_ICON[e.type] ?? "•"}</span>}
             <div className={`text-right ${e.side === "away" ? "text-left" : ""}`}>
-              <div className="text-xs font-bold">{e.player}{e.related_player ? ` (换下 ${e.related_player})` : ""}</div>
+              <div className="text-xs font-bold">
+                {e.player && (
+                  e.player_id ? (
+                    <Link href={`/player/${e.player_id}`} className="hover:text-accent2">{e.player}</Link>
+                  ) : e.player
+                )}
+                {e.related_player && (
+                  <>
+                    {" (换下 "}
+                    {e.related_player_id ? (
+                      <Link href={`/player/${e.related_player_id}`} className="hover:text-accent2">{e.related_player}</Link>
+                    ) : e.related_player}
+                    {")"}
+                  </>
+                )}
+              </div>
               <div className="text-[10.5px] text-sub">{e.detail ?? e.type}</div>
             </div>
             {e.side === "home" && <span>{EVENT_ICON[e.type] ?? "•"}</span>}
@@ -194,13 +209,13 @@ export default function MatchPage() {
       {/* 比分头 */}
       <section className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 rounded-xl border border-line px-6 py-6"
         style={{ background: "linear-gradient(180deg,#131d33,#101728)" }}>
-        <div className="flex flex-col items-center gap-2">
+        <Link href={`/team/${m.home_team.id}`} className="group flex flex-col items-center gap-2" title="查看球队详情">
           <span className="flex h-14 w-14 items-center justify-center rounded-full text-base font-extrabold text-white" style={{ background: m.home_team.color }}>
             {m.home_team.short_name}
           </span>
-          <div className="text-[15px] font-extrabold">{m.home_team.name}</div>
+          <div className="text-[15px] font-extrabold transition-colors group-hover:text-accent2">{m.home_team.name}</div>
           <div className="text-[11.5px] text-sub">Elo {Math.round(m.home_team.elo_rating)} · TPI {m.home_team.tpi ?? "—"} · 主场</div>
-        </div>
+        </Link>
         <div className="text-center">
           <div className="mb-1.5 text-xs text-sub">{m.league.name} · {m.round}</div>
           <div className="text-4xl font-black tabular-nums tracking-widest">
@@ -208,13 +223,13 @@ export default function MatchPage() {
           </div>
           <div className="mt-2 flex justify-center"><StatusTag status={m.status} period={m.period} /></div>
         </div>
-        <div className="flex flex-col items-center gap-2">
+        <Link href={`/team/${m.away_team.id}`} className="group flex flex-col items-center gap-2" title="查看球队详情">
           <span className="flex h-14 w-14 items-center justify-center rounded-full text-base font-extrabold text-white" style={{ background: m.away_team.color }}>
             {m.away_team.short_name}
           </span>
-          <div className="text-[15px] font-extrabold">{m.away_team.name}</div>
+          <div className="text-[15px] font-extrabold transition-colors group-hover:text-accent2">{m.away_team.name}</div>
           <div className="text-[11.5px] text-sub">Elo {Math.round(m.away_team.elo_rating)} · TPI {m.away_team.tpi ?? "—"} · 客场</div>
-        </div>
+        </Link>
       </section>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_1fr]">

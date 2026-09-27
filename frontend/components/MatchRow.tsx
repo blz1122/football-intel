@@ -1,6 +1,8 @@
 "use client";
 // 比赛行卡片 —— Dashboard 列表复用
+// 整行点击进比赛详情；队徽/队名点击进球队详情页（阻止冒泡）
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { MatchListItem } from "@/lib/types";
 import { ProbBar, StatusTag, TeamBadge } from "./ui";
 
@@ -10,11 +12,26 @@ function fmtTime(iso: string) {
 }
 
 export default function MatchRow({ m }: { m: MatchListItem }) {
+  const router = useRouter();
   const live = m.status === "live" || m.status === "halftime";
-  return (
+
+  const teamLink = (team: MatchListItem["home_team"]) => (
     <Link
-      href={`/match/${m.id}`}
-      className="grid grid-cols-[130px_1fr_auto] items-center gap-3 border-b border-line px-4 py-3 transition-colors last:border-b-0 hover:bg-panel2 md:grid-cols-[150px_1fr_200px_130px]"
+      href={`/team/${team.id}`}
+      onClick={(e) => e.stopPropagation()}
+      className="flex min-w-0 items-center gap-2 text-sm font-semibold hover:text-accent2"
+      title={`查看 ${team.name} 球队页`}
+    >
+      <TeamBadge team={team} />
+      <span className="truncate">{team.name}</span>
+    </Link>
+  );
+
+  return (
+    <div
+      onClick={() => router.push(`/match/${m.id}`)}
+      className="grid cursor-pointer grid-cols-[130px_1fr_auto] items-center gap-3 border-b border-line px-4 py-3 transition-colors last:border-b-0 hover:bg-panel2 md:grid-cols-[150px_1fr_200px_130px]"
+      title="查看比赛详情"
     >
       <div>
         <div className="flex items-center gap-2 text-xs text-sub">
@@ -29,14 +46,8 @@ export default function MatchRow({ m }: { m: MatchListItem }) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <TeamBadge team={m.home_team} />
-          <span className="truncate">{m.home_team.name}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <TeamBadge team={m.away_team} />
-          <span className="truncate">{m.away_team.name}</span>
-        </div>
+        <div className="flex items-center">{teamLink(m.home_team)}</div>
+        <div className="flex items-center">{teamLink(m.away_team)}</div>
       </div>
 
       <div className="hidden justify-end md:flex">
@@ -71,6 +82,6 @@ export default function MatchRow({ m }: { m: MatchListItem }) {
           <ProbBar p={m.win_prob} />
         </div>
       </div>
-    </Link>
+    </div>
   );
 }

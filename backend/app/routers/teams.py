@@ -7,7 +7,9 @@ from app.models import League, Player, Team, TeamRating
 from app.schemas import (
     LeagueBrief,
     PlayerBrief,
+    PlayerListItem,
     PlayerProfile,
+    TeamListItem,
     TeamProfile,
     TeamRadar,
 )
@@ -20,6 +22,56 @@ def _player_brief(p: Player) -> PlayerBrief:
         id=p.id, name=p.name, name_en=p.name_en, position=p.position,
         number=p.number, ai_rating=p.ai_rating, season_stats=p.season_stats or {},
     )
+
+
+@router.get("/teams", response_model=list[TeamListItem])
+def list_teams(league_id: int | None = None, db: Session = Depends(get_db)):
+    """球队列表（可按联赛过滤），按 TPI 降序。"""
+    q = db.query(Team).order_by(Team.id)
+    if league_id:
+        q = q.filter(Team.league_id == league_id)
+    ratings = {r.team_id: r.tpi for r in db.query(TeamRating).all()}
+    out = []
+    for t in q.all():
+        out.append(TeamListItem(
+            id=t.id, name=t.name, name_en=t.name_en, short_name=t.short_name,
+            color=t.color, elo_rating=t.elo_rating, stadium=t.stadium,
+            league=LeagueBrief(id=t.league.id, name=t.league.name,
+                               short_name=t.league.short_name),
+            tpi=ratings.get(t.id),
+        ))
+    out.sort(key=lambda x: x.tpi or 0, reverse=True)
+    return out
+
+
+@router.get("/players", response_model=list[PlayerListItem])
+def list_players(
+    league_id: int | None = None,
+    team_id: int | None = None,
+    position: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """球员列表（可按联赛/球队/位置过滤），按 AI 评分降序。"""
+    q = db.query(Player).join(Team, Player.team_id == Team.id)
+    if team_id:
+        q = q.filter(Player.team_id == team_id)
+    if league_id:
+        q = q.filter(Team.league_id == league_id)
+    if position:
+        q = q.filter(Player.position == position)
+    players = q.all()
+    players.sort(key=lambda p: p.ai_rating or 0, reverse=True)
+    return [
+        PlayerListItem(
+            id=p.id, name=p.name, name_en=p.name_en, position=p.position,
+            number=p.number, age=p.age, ai_rating=p.ai_rating,
+            season_stats=p.season_stats or {},
+            team_id=p.team.id, team_name=p.team.name,
+            team_short=p.team.short_name, team_color=p.team.color,
+            league_short=p.team.league.short_name,
+        )
+        for p in players
+    ]
 
 
 @router.get("/teams/{team_id}", response_model=TeamProfile)

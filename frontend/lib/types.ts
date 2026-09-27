@@ -74,7 +74,9 @@ export interface EventOut {
   minute: number;
   side: "home" | "away";
   type: "goal" | "yellow_card" | "red_card" | "substitution";
+  player_id: number | null;
   player: string | null;
+  related_player_id: number | null;
   related_player: string | null;
   detail: string | null;
 }
@@ -185,4 +187,34 @@ export interface PlayerProfile {
   team: TeamBrief;
   ai_rating: number;
   season_stats: Record<string, number>;
+}
+
+// ---------------- 列表页 ----------------
+
+export interface TeamListItem {
+  id: number;
+  name: string;
+  name_en: string;
+  short_name: string;
+  color: string;
+  elo_rating: number;
+  stadium: string | null;
+  league: LeagueBrief;
+  tpi: number | null;
+}
+
+export interface PlayerListItem {
+  id: number;
+  name: string;
+  name_en: string;
+  position: string;
+  number: number;
+  age: number;
+  ai_rating: number;
+  season_stats: Record<string, number>;
+  team_id: number;
+  team_name: string;
+  team_short: string;
+  team_color: string;
+  league_short: string;
 }

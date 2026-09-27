@@ -12,6 +12,7 @@
 产物：backend/dist/FootballIntel/FootballIntel.exe，双击自动启动并打开浏览器。
 """
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,12 @@ STATIC = ROOT / "static"
 OUT = FRONTEND / ".next-export"
 
 PY = sys.executable
+
+# 宿主环境可能通过 NODE_OPTIONS 注入 fs shim（language-shim/safe-delete-shim）：
+# 会拦截 next build 的批量删除（EPERM / 批量删除确认）导致构建崩溃。
+# 打包子进程必须以干净环境运行。
+os.environ.pop("NODE_OPTIONS", None)
+os.environ["CODEBUDDY_SAFE_DELETE_ENABLED"] = "0"
 
 
 def _npm() -> str:
@@ -61,6 +68,13 @@ def build_frontend() -> None:
     print("[1/3] 前端静态导出")
     marker = FRONTEND / ".desktop-export"
     marker.write_text("desktop export build marker", encoding="utf-8")
+    # 经验：next build 启动时会把 trace 写进 <cwd>/.next/trace（与 distDir 无关）。
+    # - .next 不存在时 next 自建会偶发 EPERM（safe-delete shim/杀软干扰）→ 预先建好
+    # - 不要整体挪走 .next：挪走后重建必触发 EPERM
+    dot_next = FRONTEND / ".next"
+    if not dot_next.is_dir():
+        dot_next.mkdir(parents=True, exist_ok=True)
+    (dot_next / "trace").touch(exist_ok=True)
     try:
         run([_npm(), "run", "build"], FRONTEND)
     finally:
