@@ -7,6 +7,7 @@ import EChart, { CHART_COLORS, baseOption } from "@/components/charts/EChart";
 import { Panel, StatusTag, TeamBadge } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { CurvePoint, EventOut, ShotMap } from "@/lib/types";
+import { useLiveSocket } from "@/lib/useLiveSocket";
 import { usePolling } from "@/lib/usePolling";
 
 function StatRow({ label, h, a }: { label: string; h: number | string; a: number | string }) {
@@ -117,10 +118,31 @@ function MonteCarloGrid({ matrix }: { matrix: Record<string, number> }) {
 export default function MatchPage() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
-  const { data } = usePolling(() => api.matchDetail(id), 10000);
+  const { data } = usePolling(() => api.matchDetail(id), 20000);
   const { data: curve } = usePolling(() => api.winProbCurve(id), 15000);
   const { data: shots } = usePolling(() => api.shotMap(id), 20000);
   const { data: mc } = usePolling(() => api.monteCarlo(id), 60000);
+  const { data: report } = usePolling(() => api.report(id), 20000);
+  const { updates, connected } = useLiveSocket(false, id);
+
+  // WebSocket 快照合并：分钟/比分/概率实时覆盖
+  const m = useMemo(() => {
+    if (!data) return null;
+    const u = updates[id];
+    if (!u) return data.match;
+    return {
+      ...data.match,
+      status: u.status as typeof data.match.status,
+      minute: u.minute,
+      home_score: u.home_score,
+      away_score: u.away_score,
+      win_prob: u.win_prob,
+      live_stats: u.stats
+        ? ({ ...data.match.live_stats, ...u.stats } as typeof data.match.live_stats)
+        : data.match.live_stats,
+    };
+  }, [data, updates, id]);
+  const s = m?.live_stats ?? null;
 
   const curveOption = useMemo(() => {
     const pts = curve ?? [];
@@ -158,13 +180,12 @@ export default function MatchPage() {
     };
   }, [curve]);
 
-  if (!data) {
+  if (!data || !m) {
     return <div className="py-24 text-center text-sub">加载中…（确认后端 uvicorn 已启动）</div>;
   }
 
-  const { match: m, events, prediction } = data;
-  const s = m.live_stats;
-  const live = m.status === "live" || m.status === "halftime";
+  const { events, prediction } = data;
+  const live = m && (m.status === "live" || m.status === "halftime");
 
   return (
     <div>
@@ -327,22 +348,29 @@ export default function MatchPage() {
             <Timeline events={events} homeColor={m.home_team.color} awayColor={m.away_team.color} />
           </Panel>
 
-          {/* AI 报告（Phase 4 接入 LLM 生成，当前规则模板） */}
-          <Panel title="📝 AI 比赛报告" tag="规则引擎 · Phase 4 升级 LLM">
-            <div className="space-y-2.5 px-4 py-4 text-[13px] leading-relaxed text-[#c6d2ec]">
-              <p><b className="text-txt">🔑 关键点：</b>
-                {s ? `双方 xG 对比 ${s.xg_home.toFixed(2)} : ${s.xg_away.toFixed(2)}，` : ""}
-                Elo 实力差 {Math.round(Math.abs(m.home_team.elo_rating - m.away_team.elo_rating))} 分，
-                {Math.abs(m.home_team.elo_rating - m.away_team.elo_rating) > 80 ? "实力差距明显，强队控局" : "势均力敌，细节决定胜负"}。
-              </p>
-              <p><b className="text-txt">⚠️ 风险提醒：</b>
-                {s && s.red_home + s.red_away > 0
-                  ? "本场已出现红牌，人数劣势方防守压力显著上升。"
-                  : s && s.fouls_home + s.fouls_away > 20
-                  ? "犯规次数偏多，注意牌面风险累积。"
-                  : "暂无明显风险信号。"}
-              </p>
-            </div>
+          {/* AI 报告：数据驱动模板引擎，可配置 LLM 生成 */}
+          <Panel
+            title="📝 AI 比赛报告"
+            tag={
+              report
+                ? report.generated_by === "llm"
+                  ? "LLM 生成"
+                  : "数据驱动模板引擎"
+                : "生成中…"
+            }
+          >
+            {report ? (
+              <div className="space-y-3 px-4 py-4 text-[13px] leading-relaxed text-[#c6d2ec]">
+                {report.sections.map((sec, i) => (
+                  <p key={i}>
+                    <b className="text-txt">{sec.icon} {sec.title}：</b>
+                    {sec.body}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <div className="px-4 py-8 text-center text-sm text-sub">报告生成中…</div>
+            )}
           </Panel>
         </div>
       </div>

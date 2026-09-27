@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.config import settings
 from app.core.db import get_db
@@ -146,7 +146,17 @@ def list_matches(
     )
     if league_id:
         q = q.filter(Match.league_id == league_id)
-    matches = q.order_by(Match.kickoff_at).all()
+    matches = (
+        q.options(
+            joinedload(Match.league),
+            joinedload(Match.home_team),
+            joinedload(Match.away_team),
+            joinedload(Match.prediction),
+            selectinload(Match.events),
+        )
+        .order_by(Match.kickoff_at)
+        .all()
+    )
     ratings = _ratings_map(db)
 
     # 焦点战：未开赛场次中 Elo 之和最高的 6 场
@@ -285,6 +295,44 @@ def shotmap(match_id: int, db: Session = Depends(get_db)):
         home=_shots(n_home, g_home, (0.62, 0.95), 101),
         away=_shots(n_away, g_away, (0.05, 0.38), 202),
     )
+
+
+@router.get("/{match_id}/report")
+def match_report(match_id: int, db: Session = Depends(get_db)):
+    """AI 比赛报告：数据驱动模板引擎（默认）或 LLM 生成（可选），10 秒缓存。"""
+    from app.core.cache import cache
+    from app.core.report import build_facts, generate_report
+
+    m = _get_match(db, match_id)
+    state = match_state(m.kickoff_at)
+    events = _visible_events(m, state)
+    hs, as_ = _score(events)
+    state = {**state, "home_score": hs, "away_score": as_}
+    stats = _live_stats(m, state, events)
+    if not m.prediction:
+        raise HTTPException(404, "MODEL_NOT_READY")
+
+    curve = None
+    if state["status"] != "scheduled":
+        cached_curve = cache.get(f"curve:{match_id}:{state['minute']}")
+        if cached_curve is None:
+            pred = m.prediction
+            gh, ga = _goal_minutes(events)
+            pts, h, a = [], 0, 0
+            for minute in range(1, (state["minute"] or 90) + 1):
+                if minute in gh:
+                    h += 1
+                if minute in ga:
+                    a += 1
+                pts.append({"minute": minute, **inmatch(
+                    minute, h, a, pred.lambda_home, pred.lambda_away)})
+            cached_curve = pts
+            cache.set(f"curve:{match_id}:{state['minute']}", cached_curve, 10)
+        curve = cached_curve
+
+    facts = build_facts(m, state, events, stats, m.prediction, curve)
+    result = generate_report(facts)
+    return {"match_id": match_id, "generated_at": state["minute"], **result}
 
 
 @router.get("/{match_id}/monte-carlo", response_model=MonteCarloOut)

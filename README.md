@@ -66,34 +66,47 @@ football-intel/
 ├── design/
 │   └── ui-prototype.html    # 高保真 UI 原型（深色科技风）
 ├── backend/                 # FastAPI（Phase 2+）
-│   ├── app/api/             # 路由
-│   ├── app/core/            # 配置与依赖
-│   ├── app/models/          # ORM
-│   ├── app/services/        # 数据处理 / Provider
-│   └── app/ml/              # 预测模型 / 模拟器
+│   ├── app/core/            # 配置 / DB / 缓存 / 预测 / AI 报告引擎
+│   ├── app/providers/       # 数据源 Provider（Mock / api-football 适配）
+│   ├── app/routers/         # 路由（比赛 / 元数据 / 球队 / 系统）
+│   ├── app/ws.py            # WebSocket 连接管理与广播
+│   ├── app/ml/              # XGBoost 训练 / Monte Carlo
+│   └── run.py               # 启动脚本
 ├── frontend/                # Next.js（Phase 2+）
 │   ├── app/                 # App Router 页面
 │   ├── components/          # UI 组件
-│   └── lib/                 # API 客户端 / 类型
+│   └── lib/                 # API 客户端 / 类型 / WS hook
 └── README.md
 ```
 
 ---
 
-## 🚀 快速开始（Phase 1 阶段）
+## 🚀 快速开始
 
-当前为 **Phase 1：架构设计 + 数据库设计 + UI 原型**。
+**后端**（FastAPI，含模拟数据引擎，首次启动自动建表 + 训练模型 + 注入种子）：
 
-1. 查看 `design/ui-prototype.html` 预览 Dashboard 视觉方案
-2. 查看 `docs/` 了解架构、数据库与 API 设计
-3. `db/schema.sql` 可直接在 PostgreSQL 中执行建表
+```bash
+cd backend
+pip install -r requirements.txt
+python run.py        # http://127.0.0.1:8000 ，API 文档 /docs
+```
+
+**前端**（Next.js Dashboard）：
+
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:3000
+```
+
+打开 Dashboard 即可看到实时比赛、AI 预测排行与 WebSocket 实时推送。
 
 ## 🗺️ 开发阶段
 
 - **Phase 1** ✅ 产品架构设计 · 仓库初始化 · 数据库设计 · UI 原型
-- **Phase 2** ⏳ Dashboard · 比赛数据模块 · 数据接口
-- **Phase 3** ⏳ AI 预测模型 · xG 分析 · Monte Carlo 模拟
-- **Phase 4** ⏳ 真实数据接入 · WebSocket · 性能优化
+- **Phase 2** ✅ Dashboard · 比赛数据模块 · 数据接口（FastAPI + Next.js + 模拟引擎）
+- **Phase 3** ✅ Dixon-Coles + XGBoost 融合 · Monte Carlo · TPI/球员评分 · 全站中文化
+- **Phase 4** ✅ Provider 适配层（可接真实 API） · WebSocket 实时推送 · 缓存/压缩优化 · AI 报告引擎
 - **Phase 5** ⏳ UI 升级 · 部署 · Windows 客户端打包
 
 详见 [docs/ROADMAP.md](docs/ROADMAP.md)。

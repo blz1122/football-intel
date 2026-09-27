@@ -1,10 +1,12 @@
 "use client";
 // Dashboard 首页：KPI + 状态分组比赛列表 + 联赛筛选 + AI 预测排行/热门赛事
+// Phase 4: WebSocket 5s 实时推送 + 30s REST 兜底轮询
 import { useMemo, useState } from "react";
 import MatchRow from "@/components/MatchRow";
 import { Panel } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { MatchListItem } from "@/lib/types";
+import { useLiveSocket } from "@/lib/useLiveSocket";
 import { usePolling } from "@/lib/usePolling";
 
 const TABS = [
@@ -21,28 +23,50 @@ function groupOf(m: MatchListItem) {
 }
 
 export default function Dashboard() {
-  const { data: matches } = usePolling(() => api.matches(), 10000);
+  const { data: matches } = usePolling(() => api.matches(), 30000);
   const { data: kpis } = usePolling(() => api.kpis(), 30000);
   const { data: top } = usePolling(() => api.topPredictions(), 30000);
   const { data: leagues } = usePolling(() => api.leagues(), 300000);
+  const { updates, liveCount, connected } = useLiveSocket(true);
 
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("live");
   const [league, setLeague] = useState<number | "all">("all");
 
+  // WebSocket 快照合并：分钟/比分/胜率/统计以 WS 推送为准
+  const liveMatches = useMemo(() => {
+    const base = matches ?? [];
+    if (!Object.keys(updates).length) return base;
+    return base.map((m) => {
+      const u = updates[m.id];
+      if (!u) return m;
+      return {
+        ...m,
+        status: u.status as MatchListItem["status"],
+        minute: u.minute,
+        home_score: u.home_score,
+        away_score: u.away_score,
+        win_prob: u.win_prob,
+        live_stats: u.stats
+          ? ({ ...m.live_stats, ...u.stats } as MatchListItem["live_stats"])
+          : m.live_stats,
+      };
+    });
+  }, [matches, updates]);
+
   const filtered = useMemo(() => {
-    let list = matches ?? [];
+    let list = liveMatches;
     if (league !== "all") list = list.filter((m) => m.league.id === league);
     if (tab === "live") list = list.filter((m) => groupOf(m) === "live");
     if (tab === "scheduled") list = list.filter((m) => groupOf(m) === "scheduled");
     if (tab === "finished") list = list.filter((m) => groupOf(m) === "finished");
     return list;
-  }, [matches, tab, league]);
+  }, [liveMatches, tab, league]);
 
   const kpiCards = [
     { l: "今日比赛", v: kpis?.total_today ?? "—", t: "5 大联赛 · 实时" },
     { l: "AI 预测准确率 (7日)", v: kpis ? `${kpis.accuracy_7d}%` : "—", t: "胜平负方向命中" },
     { l: "模型 Brier Score", v: kpis?.brier_score ?? "—", t: "越低越好 · 优于随机 0.333" },
-    { l: "进行中", v: kpis?.live_now ?? "—", t: "10s 定时刷新" },
+    { l: "进行中", v: liveCount ?? kpis?.live_now ?? "—", t: connected ? "WebSocket 实时推送" : "REST 轮询兜底" },
   ];
 
   return (
@@ -60,7 +84,11 @@ export default function Dashboard() {
 
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         {/* 比赛中心 */}
-        <Panel title="⚡ 实时足球数据中心" tag="10s 自动刷新">
+        <Panel
+          title="⚡ 实时足球数据中心"
+          tag={connected ? "WebSocket 实时推送" : "REST 轮询"}
+          dot={connected ? "#22c58b" : "#f5b342"}
+        >
           <div className="flex flex-wrap gap-1.5 px-4 pt-3">
             {TABS.map((t) => {
               const count =
@@ -151,8 +179,14 @@ export default function Dashboard() {
           <Panel title="📡 数据链路">
             <div className="space-y-2 px-4 py-4 text-xs leading-relaxed text-sub">
               <div>模拟数据引擎 <span className="float-right font-bold text-[#22c58b]">● 运行中</span></div>
-              <div>Elo-Poisson 预测模型 v0.1 <span className="float-right font-bold text-[#22c58b]">● 已加载</span></div>
-              <div>REST 轮询刷新 10s <span className="float-right font-bold text-[#f5b342]">● Phase 4 升级 WebSocket</span></div>
+              <div>Elo + Dixon-Coles + XGBoost <span className="float-right font-bold text-[#22c58b]">● 已加载</span></div>
+              <div>
+                WebSocket 推送 5s
+                <span className={`float-right font-bold ${connected ? "text-[#22c58b]" : "text-[#ff6b7a]"}`}>
+                  {connected ? "● 已连接" : "● 未连接"}
+                </span>
+              </div>
+              <div>REST 兜底轮询 30s <span className="float-right font-bold text-[#22c58b]">● 运行中</span></div>
             </div>
           </Panel>
         </div>

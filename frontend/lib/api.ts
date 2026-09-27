@@ -21,6 +21,11 @@ export const api = {
   leagues: () => get<{ id: number; name: string; short_name: string }[]>(`/meta/leagues`),
   monteCarlo: (id: number, n = 10000) =>
     get<import("./types").MonteCarloOut>(`/matches/${id}/monte-carlo?simulations=${n}`),
+  report: (id: number) =>
+    get<{ match_id: number; generated_by: string; sections: { icon: string; title: string; body: string }[] }>(
+      `/matches/${id}/report`
+    ),
+  systemStatus: () => get<Record<string, unknown>>(`/system/status`),
   teamProfile: (id: number) => get<import("./types").TeamProfile>(`/teams/${id}`),
   playerProfile: (id: number) => get<import("./types").PlayerProfile>(`/players/${id}`),
   tpiLeaderboard: (leagueId?: number) =>

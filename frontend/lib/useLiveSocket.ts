@@ -1,0 +1,84 @@
+"use client";
+// WebSocket 实时推送 hook —— Phase 4（直连后端 8000 端口，Next dev 代理不转发 WS）
+// 协议见 backend/app/ws.py；断线自动重连（指数退避，上限 15s）。
+import { useEffect, useRef, useState } from "react";
+
+const WS_URL =
+  process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/api/v1/ws/matches";
+
+export interface LiveSnapshot {
+  match_id: number;
+  status: string;
+  period: string;
+  minute: number | null;
+  home_score: number;
+  away_score: number;
+  win_prob: { home: number; draw: number; away: number };
+  stats: Record<string, number> | null;
+}
+
+export function useLiveSocket(subscribeAll = false, matchId?: number) {
+  const [updates, setUpdates] = useState<Record<number, LiveSnapshot>>({});
+  const [liveCount, setLiveCount] = useState<number | null>(null);
+  const [connected, setConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const retryRef = useRef(0);
+
+  useEffect(() => {
+    let closed = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const connect = () => {
+      if (closed) return;
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        retryRef.current = 0;
+        setConnected(true);
+        ws.send(
+          JSON.stringify(
+            subscribeAll
+              ? { action: "subscribe_all" }
+              : { action: "subscribe", match_id: matchId }
+          )
+        );
+      };
+
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === "live_update") {
+            setUpdates((prev) => ({
+              ...prev,
+              [msg.match_id]: msg.data as LiveSnapshot,
+            }));
+          } else if (msg.type === "live_count") {
+            setLiveCount(msg.count);
+          }
+        } catch {
+          /* 忽略坏帧 */
+        }
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        if (!closed) {
+          const delay = Math.min(3000 * 2 ** retryRef.current, 15000);
+          retryRef.current += 1;
+          timer = setTimeout(connect, delay);
+        }
+      };
+      ws.onerror = () => ws.close();
+    };
+
+    connect();
+    return () => {
+      closed = true;
+      clearTimeout(timer);
+      wsRef.current?.close();
+    };
+  }, [subscribeAll, matchId]);
+
+  return { updates, liveCount, connected };
+}

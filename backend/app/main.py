@@ -4,15 +4,19 @@
     uvicorn app.main:app --reload --port 8000
 首次启动自动建表并注入模拟种子数据（无比赛时）。
 """
+import asyncio
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.core.config import settings
 from app.core.db import Base, SessionLocal, engine
-from app.routers import matches, meta, teams
+from app.routers import matches, meta, system, teams
 from app.simulator import seed_all
+from app import ws as ws_layer
 
 
 @asynccontextmanager
@@ -31,11 +35,13 @@ async def lifespan(app: FastAPI):
         print(f"[boot] seed executed: {seeded}")
     finally:
         db.close()
+    # Phase 4: WebSocket 广播循环改为在首个 WS 连接时启动（见 ws.ensure_broadcast_task）
     yield
 
 
 app = FastAPI(title=settings.APP_NAME, version=settings.VERSION, lifespan=lifespan)
 
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -43,9 +49,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def process_time_header(request: Request, call_next):
+    t0 = time.perf_counter()
+    resp = await call_next(request)
+    resp.headers["X-Process-Time-Ms"] = f"{(time.perf_counter() - t0) * 1000:.1f}"
+    return resp
+
+
 app.include_router(matches.router)
 app.include_router(meta.router)
 app.include_router(teams.router)
+app.include_router(system.router)
+app.include_router(ws_layer.router)
 
 
 @app.get("/api/v1/health")

@@ -22,5 +22,19 @@ class Settings:
     FULL_MINUTES: int = 90
     HOME_ADVANTAGE_ELO: float = 65.0
 
+    # ---------------- Phase 4 ----------------
+    # 数据源: mock（本地模拟引擎）| api_football（真实 API，需 API key）
+    DATA_PROVIDER: str = os.getenv("DATA_PROVIDER", "mock")
+    API_FOOTBALL_KEY: str = os.getenv("API_FOOTBALL_KEY", "")
+    API_FOOTBALL_BASE: str = "https://v3.football.api-sports.io"
+
+    # WebSocket 推送间隔（秒）
+    WS_PUSH_INTERVAL: float = float(os.getenv("WS_PUSH_INTERVAL", "5"))
+
+    # 可选 LLM（OpenAI 兼容接口），未配置时 AI 报告使用内置数据驱动模板引擎
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
 
 settings = Settings()

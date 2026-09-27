@@ -62,11 +62,13 @@ export function ProbBar({ p }: { p: { home: number; draw: number; away: number }
 export function Panel({
   title,
   tag,
+  dot,
   children,
   className = "",
 }: {
   title?: string;
   tag?: string;
+  dot?: string;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -74,7 +76,10 @@ export function Panel({
     <section className={`overflow-hidden rounded-xl border border-line bg-panel ${className}`}>
       {title && (
         <header className="flex items-center justify-between border-b border-line px-4 py-3">
-          <h3 className="flex items-center gap-2 text-sm font-bold">{title}</h3>
+          <h3 className="flex items-center gap-2 text-sm font-bold">
+            {dot && <span className="h-2 w-2 rounded-full" style={{ background: dot }} />}
+            {title}
+          </h3>
           {tag && <span className="rounded-full bg-panel2 px-2.5 py-0.5 text-[11px] text-sub">{tag}</span>}
         </header>
       )}
