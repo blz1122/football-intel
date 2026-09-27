@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.models import League, Match
+from app.routers.matches import effective_state
 from app.schemas import Kpis, PredictionRankItem
-from app.simulator import match_state
 
 router = APIRouter(prefix="/api/v1/meta", tags=["meta"])
 
@@ -32,8 +32,8 @@ def leagues(db: Session = Depends(get_db)):
 def kpis(db: Session = Depends(get_db)):
     start, end = _today_window_utc()
     today = db.query(Match).filter(Match.kickoff_at >= start, Match.kickoff_at < end).all()
-    live = sum(1 for m in today if match_state(m.kickoff_at)["status"] in ("live", "halftime"))
-    finished = sum(1 for m in today if match_state(m.kickoff_at)["status"] == "finished")
+    live = sum(1 for m in today if effective_state(m)["status"] in ("live", "halftime"))
+    finished = sum(1 for m in today if effective_state(m)["status"] == "finished")
 
     # 近 7 日已完赛比赛的模型评估（真实计算而非硬编码）
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
@@ -44,7 +44,7 @@ def kpis(db: Session = Depends(get_db)):
     )
     hits, n, brier = 0, 0, 0.0
     for m in done:
-        st = match_state(m.kickoff_at)
+        st = effective_state(m)
         if st["status"] != "finished" or not m.prediction:
             continue
         events = m.events
@@ -68,12 +68,11 @@ def kpis(db: Session = Depends(get_db)):
 
 @router.get("/predictions/top", response_model=list[PredictionRankItem])
 def top_predictions(db: Session = Depends(get_db)):
-    """今日未开赛比赛按模型置信度排行。"""
-    start, end = _today_window_utc()
+    """未开赛比赛按模型置信度排行（今日优先，扩展到未来 7 天）。"""
     now = datetime.now(timezone.utc)
     rows = (
         db.query(Match)
-        .filter(Match.kickoff_at >= max(start, now), Match.kickoff_at < end)
+        .filter(Match.kickoff_at >= now, Match.kickoff_at < now + timedelta(days=7))
         .all()
     )
     items = []

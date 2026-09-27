@@ -43,14 +43,16 @@ export default function PlayerPage() {
       <section className="flex items-center gap-6 rounded-xl border border-line px-6 py-6"
         style={{ background: "linear-gradient(180deg,#131d33,#101728)" }}>
         <span className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-black text-white"
-          style={{ background: p.team.color }}>{p.number}</span>
+          style={{ background: p.team.color }}>{p.number || POS_CN[p.position]}</span>
         <div className="flex-1">
           <h1 className="text-2xl font-black">
             {p.name}
-            <span className="ml-3 text-sm font-semibold text-sub">{p.name_en}</span>
+            {p.name_en && p.name_en !== p.name && (
+              <span className="ml-3 text-sm font-semibold text-sub">{p.name_en}</span>
+            )}
           </h1>
           <div className="mt-1 text-sm text-sub">
-            {POS_CN[p.position]} · {p.age} 岁 · {p.team.name}
+            {POS_CN[p.position]}{p.age ? ` · ${p.age} 岁` : ""} · {p.team.name}
           </div>
         </div>
         <div className="text-center">

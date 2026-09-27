@@ -28,6 +28,10 @@ class Settings:
     API_FOOTBALL_KEY: str = os.getenv("API_FOOTBALL_KEY", "")
     API_FOOTBALL_BASE: str = "https://v3.football.api-sports.io"
 
+    # 真实数据接入（ESPN 公开接口，无需 API key）：开启后同步真实赛程/比分/统计
+    REAL_DATA: bool = os.getenv("REAL_DATA", "1").lower() in ("1", "true", "yes")
+    REAL_SYNC_INTERVAL: int = int(os.getenv("REAL_SYNC_INTERVAL", "300"))  # 秒
+
     # WebSocket 推送间隔（秒）
     WS_PUSH_INTERVAL: float = float(os.getenv("WS_PUSH_INTERVAL", "5"))
 

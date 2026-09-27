@@ -90,12 +90,19 @@ manager = ConnectionManager()
 
 
 def _topup_matches() -> None:
-    """滚动补赛（在工作线程中执行，避免阻塞事件循环）。"""
+    """滚动补赛（仅模拟数据源）；已接入真实数据时跳过，避免编造比赛。"""
+    from app.core.config import settings
     from app.core.db import SessionLocal
+    from app.models import Match
     from app.simulator import ensure_upcoming_matches
 
     db = SessionLocal()
     try:
+        if db.query(Match).filter(Match.provider == "espn").count() > 0:
+            return
+        settings_data_real = getattr(settings, "REAL_DATA", False)
+        if settings_data_real:
+            return
         ensure_upcoming_matches(db)
     finally:
         db.close()
@@ -106,8 +113,7 @@ def _live_snapshots() -> list[dict]:
     from datetime import datetime, timedelta, timezone
 
     from app.core.db import SessionLocal
-    from app.routers.matches import _to_item
-    from app.simulator import match_state
+    from app.routers.matches import _to_item, effective_state
 
     db = SessionLocal()
     try:
@@ -117,8 +123,8 @@ def _live_snapshots() -> list[dict]:
         rows = (
             db.query(Match)
             .filter(
-                Match.kickoff_at <= now,
-                Match.kickoff_at >= now - timedelta(days=2),
+                Match.kickoff_at <= now + timedelta(hours=1),
+                Match.kickoff_at >= now - timedelta(hours=6),
             )
             .order_by(Match.kickoff_at)
             .all()
@@ -126,7 +132,7 @@ def _live_snapshots() -> list[dict]:
         ratings = {r.team_id: r for r in db.query(TeamRating).all()}
         snaps = []
         for m in rows:
-            st = match_state(m.kickoff_at)
+            st = effective_state(m)
             if st["status"] not in ("live", "halftime"):
                 continue
             item = _to_item(m, st, False, ratings)

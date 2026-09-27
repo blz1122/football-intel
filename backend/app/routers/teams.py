@@ -24,12 +24,33 @@ def _player_brief(p: Player) -> PlayerBrief:
     )
 
 
+def _real_mode(db: Session) -> set[int]:
+    """真实数据源生效时，返回参与真实比赛的球队 id 集合（空集表示模拟模式）。"""
+    from app.models import Match
+
+    rows = (
+        db.query(Match.home_team_id, Match.away_team_id)
+        .filter(Match.provider == "espn")
+        .all()
+    )
+    ids: set[int] = set()
+    for h, a in rows:
+        ids.add(h)
+        ids.add(a)
+    return ids
+
+
 @router.get("/teams", response_model=list[TeamListItem])
 def list_teams(league_id: int | None = None, db: Session = Depends(get_db)):
-    """球队列表（可按联赛过滤），按 TPI 降序。"""
+    """球队列表（可按联赛过滤），按 TPI 降序。
+
+    接入真实数据源时只返回真实赛程中出现的球队，避免混入模拟球队。"""
     q = db.query(Team).order_by(Team.id)
     if league_id:
         q = q.filter(Team.league_id == league_id)
+    real_ids = _real_mode(db)
+    if real_ids:
+        q = q.filter(Team.id.in_(real_ids))
     ratings = {r.team_id: r.tpi for r in db.query(TeamRating).all()}
     out = []
     for t in q.all():
@@ -59,6 +80,9 @@ def list_players(
         q = q.filter(Team.league_id == league_id)
     if position:
         q = q.filter(Player.position == position)
+    real_ids = _real_mode(db)
+    if real_ids:
+        q = q.filter(Player.team_id.in_(real_ids), Player.provider == "espn")
     players = q.all()
     players.sort(key=lambda p: p.ai_rating or 0, reverse=True)
     return [
@@ -88,6 +112,11 @@ def team_profile(team_id: int, db: Session = Depends(get_db)):
         .order_by(Player.position, Player.number)
         .all()
     )
+    # 真实数据源模式下只展示真实阵容，避免混入模拟球员
+    if _real_mode(db):
+        real_squad = [p for p in squad if p.provider == "espn"]
+        if real_squad:
+            squad = real_squad
     # 前锋->中场->后卫->门将 展示顺序
     order = {"FW": 0, "MF": 1, "DF": 2, "GK": 3}
     squad.sort(key=lambda p: (order.get(p.position, 9), p.number))

@@ -24,3 +24,40 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+# 新增列（真实数据源支持）在既有库上需要 ALTER，SQLite/PostgreSQL 通用
+_EXTRA_COLUMNS: dict[str, dict[str, str]] = {
+    "matches": {
+        "provider": "VARCHAR(16) DEFAULT 'mock'",
+        "provider_event_id": "VARCHAR(40)",
+        "status_override": "VARCHAR(12)",
+        "minute_override": "SMALLINT",
+        "score_home": "SMALLINT",
+        "score_away": "SMALLINT",
+        "stats_json": "JSON",
+    },
+    "teams": {
+        "provider": "VARCHAR(16) DEFAULT 'mock'",
+        "provider_team_id": "VARCHAR(40)",
+    },
+    "players": {
+        "provider": "VARCHAR(16) DEFAULT 'mock'",
+    },
+}
+
+
+def ensure_schema() -> None:
+    """为已存在的库补齐新增列（幂等，缺失才 ALTER）。"""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    tables = set(insp.get_table_names())
+    with engine.begin() as conn:
+        for table, cols in _EXTRA_COLUMNS.items():
+            if table not in tables:
+                continue
+            existing = {c["name"] for c in insp.get_columns(table)}
+            for name, ddl in cols.items():
+                if name not in existing:
+                    conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {name} {ddl}'))

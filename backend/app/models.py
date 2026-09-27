@@ -48,6 +48,8 @@ class Season(Base):
 class Team(Base):
     __tablename__ = "teams"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(16), default="mock", index=True)
+    provider_team_id: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
     name: Mapped[str] = mapped_column(String(80))        # 中文名（展示）
     name_en: Mapped[str] = mapped_column(String(80), default="")
@@ -66,6 +68,7 @@ class Player(Base):
     __tablename__ = "players"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"))
+    provider: Mapped[str] = mapped_column(String(16), default="mock", index=True)
     name: Mapped[str] = mapped_column(String(80))        # 中文名（展示）
     name_en: Mapped[str] = mapped_column(String(80), default="")
     position: Mapped[str] = mapped_column(String(2))  # GK/DF/MF/FW
@@ -90,6 +93,16 @@ class Match(Base):
     venue: Mapped[str | None] = mapped_column(String(80), nullable=True)
     round: Mapped[str | None] = mapped_column(String(40), nullable=True)
     sim_seed: Mapped[int] = mapped_column(Integer)  # 模拟器确定性种子
+
+    # ---------------- 真实数据源字段（ESPN 等；模拟数据 provider="mock"） ----------------
+    provider: Mapped[str] = mapped_column(String(16), default="mock", index=True)
+    provider_event_id: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    # 真实状态/分钟/比分：存在时优先于按 kickoff 惰性推导的模拟状态
+    status_override: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    minute_override: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    score_home: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    score_away: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    stats_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     league: Mapped[League] = relationship()
     home_team: Mapped[Team] = relationship(foreign_keys=[home_team_id])

@@ -11,6 +11,34 @@ router = APIRouter(prefix="/api/v1/system", tags=["system"])
 _started = time.time()
 
 
+def _data_source() -> dict:
+    """当前实际数据来源：真实（ESPN）或模拟引擎，供前端如实展示。"""
+    from app.core.db import SessionLocal
+    from app.models import Match
+
+    from app.ingest import espn
+
+    db = SessionLocal()
+    try:
+        real = db.query(Match).filter(Match.provider == "espn").count()
+        total = db.query(Match).count()
+    finally:
+        db.close()
+    sync = espn.last_sync()
+    if real:
+        return {
+            "mode": "real", "provider": "ESPN", "label": "真实数据 · ESPN",
+            "real_matches": real, "total_matches": total,
+            "last_sync": sync.get("at"), "sync_ok": sync.get("ok"),
+        }
+    return {
+        "mode": "mock", "provider": "simulator", "label": "演示模式 · 模拟数据",
+        "real_matches": 0, "total_matches": total,
+        "last_sync": sync.get("at"), "sync_ok": sync.get("ok"),
+        "sync_error": sync.get("error"),
+    }
+
+
 @router.get("/status")
 def status():
     """运行状态总览（含数据源连通性检查）。"""
@@ -34,6 +62,7 @@ def status():
             "active": provider.name,
             "health": provider.healthcheck(),
         },
+        "data_source": _data_source(),
         "cache": cache.stats(),
         "ws_push_interval": settings.WS_PUSH_INTERVAL,
         "llm_report": "enabled" if settings.OPENAI_API_KEY else "template-engine",

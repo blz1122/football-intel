@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LiveCount from "@/components/LiveCount";
+import DataSource from "@/components/DataSource";
 import "./globals.css";
 
 const NAV = [
@@ -43,11 +44,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               );
             })}
           </nav>
+          <DataSource />
           <LiveCount />
         </header>
         <main className="mx-auto max-w-[1360px] px-3 pb-24 pt-5 md:px-6 md:pb-16">{children}</main>
         <footer className="hidden border-t border-line py-6 text-center text-[11px] text-sub md:block">
-          FOOTINTEL · AI Football Intelligence Platform · 数据来源：模拟引擎（可切换真实 API）· 模型：Dixon-Coles + XGBoost
+          <DataSource variant="footer" />
         </footer>
 
         {/* 移动端底部导航 */}

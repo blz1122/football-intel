@@ -1,8 +1,9 @@
 "use client";
 // Dashboard 首页：KPI + 状态分组比赛列表 + 联赛筛选 + AI 预测排行/热门赛事
 // Phase 4: WebSocket 5s 实时推送 + 30s REST 兜底轮询
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MatchRow from "@/components/MatchRow";
+import DataSource, { useDataSource } from "@/components/DataSource";
 import { MatchRowSkeleton, Panel, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { MatchListItem } from "@/lib/types";
@@ -28,9 +29,27 @@ export default function Dashboard() {
   const { data: top } = usePolling(() => api.topPredictions(), 30000);
   const { data: leagues } = usePolling(() => api.leagues(), 300000);
   const { updates, liveCount, connected } = useLiveSocket(true);
+  const ds = useDataSource();
 
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("live");
   const [league, setLeague] = useState<number | "all">("all");
+  const [autoPicked, setAutoPicked] = useState(false);
+
+  // 非比赛日（或数据源暂无进行中比赛）时自动切到有内容的分组，避免空白页
+  useEffect(() => {
+    if (autoPicked || !matches) return;
+    const counts = {
+      live: matches.filter((m) => groupOf(m) === "live").length,
+      scheduled: matches.filter((m) => groupOf(m) === "scheduled").length,
+      finished: matches.filter((m) => groupOf(m) === "finished").length,
+    };
+    if (counts.live > 0) {
+      setAutoPicked(true);
+      return;
+    }
+    setTab(counts.scheduled > 0 ? "scheduled" : counts.finished > 0 ? "finished" : "all");
+    setAutoPicked(true);
+  }, [matches, autoPicked]);
 
   // WebSocket 快照合并：分钟/比分/胜率/统计以 WS 推送为准
   const liveMatches = useMemo(() => {
@@ -59,6 +78,9 @@ export default function Dashboard() {
     if (tab === "live") list = list.filter((m) => groupOf(m) === "live");
     if (tab === "scheduled") list = list.filter((m) => groupOf(m) === "scheduled");
     if (tab === "finished") list = list.filter((m) => groupOf(m) === "finished");
+    if (tab === "finished") list = [...list].sort(
+      (a, b) => new Date(b.kickoff_at).getTime() - new Date(a.kickoff_at).getTime(),
+    );
     return list;
   }, [liveMatches, tab, league]);
 
@@ -136,7 +158,16 @@ export default function Dashboard() {
             ) : filtered.length === 0 ? (
               <div className="px-4 py-12 text-center">
                 <div className="mb-2 text-2xl opacity-40">🕳️</div>
-                <div className="text-sm text-sub">该筛选条件下暂无比赛</div>
+                <div className="text-sm text-sub">
+                  {tab === "live"
+                    ? "当前没有进行中的比赛（真实数据源，未编造比赛）"
+                    : "该筛选条件下暂无比赛"}
+                </div>
+                {tab === "live" && (
+                  <div className="mt-2 text-xs text-sub">
+                    可切换到「即将开始」或「已结束」查看真实赛程与结果
+                  </div>
+                )}
               </div>
             ) : (
               filtered.map((m, i) => (
@@ -203,7 +234,18 @@ export default function Dashboard() {
 
           <Panel title="📡 数据链路">
             <div className="space-y-2 px-4 py-4 text-xs leading-relaxed text-sub">
-              <div>模拟数据引擎 <span className="float-right font-bold text-[#22c58b]">● 运行中</span></div>
+              <div>
+                数据源
+                <span className={`float-right font-bold ${ds?.mode === "real" ? "text-[#22c58b]" : "text-[#f5b342]"}`}>
+                  ● {ds?.label ?? "检测中…"}
+                </span>
+              </div>
+              <div>
+                真实比赛
+                <span className="float-right font-bold text-txt">
+                  {ds?.real_matches ?? 0} / {ds?.total_matches ?? 0} 场
+                </span>
+              </div>
               <div>Elo + Dixon-Coles + XGBoost <span className="float-right font-bold text-[#22c58b]">● 已加载</span></div>
               <div>
                 WebSocket 推送 5s

@@ -62,7 +62,20 @@ def _visible_events(m: Match, state: dict):
     return [e for e in m.events if e.minute <= (state["minute"] or 0)]
 
 
-def _score(events) -> tuple[int, int]:
+def effective_state(m: Match) -> dict:
+    """真实数据源（ESPN）落库的状态优先；模拟数据按 kickoff 惰性推导。"""
+    if m.status_override:
+        minute = m.minute_override
+        period = {"live": "2H" if (minute or 0) > 45 else "1H",
+                  "halftime": "HT", "finished": "FT"}.get(m.status_override)
+        return {"status": m.status_override, "period": period, "minute": minute}
+    return match_state(m.kickoff_at)
+
+
+def _score(m: Match, events) -> tuple[int, int]:
+    """真实比分来自 provider 落库值；模拟比分由事件累计。"""
+    if m.score_home is not None and m.score_away is not None:
+        return m.score_home, m.score_away
     hs = sum(1 for e in events if e.type == "goal" and e.side == "home")
     as_ = sum(1 for e in events if e.type == "goal" and e.side == "away")
     return hs, as_
@@ -84,6 +97,13 @@ def _win_prob(m: Match, state: dict, hs: int, as_: int, pred: MatchPrediction) -
 def _live_stats(m: Match, state: dict, events) -> LiveStats | None:
     if state["status"] == "scheduled":
         return None
+    # 真实数据源：直接采用 ESPN boxscore 落库的统计
+    if m.stats_json:
+        d = dict(m.stats_json)
+        d["minute"] = state["minute"] or d.get("minute") or 90
+        d.setdefault("dangerous_home", 0)
+        d.setdefault("dangerous_away", 0)
+        return LiveStats(**d)
     minute = state["minute"] or 90
     gh, ga = _goal_minutes(events)
     elo_diff = m.home_team.elo_rating - m.away_team.elo_rating
@@ -106,7 +126,7 @@ def _live_stats(m: Match, state: dict, events) -> LiveStats | None:
 def _to_item(m: Match, state: dict, hot: bool,
              ratings: dict[int, TeamRating] | None = None) -> MatchListItem:
     events = _visible_events(m, state)
-    hs, as_ = _score(events)
+    hs, as_ = _score(m, events)
     pred = m.prediction
     ratings = ratings or {}
     return MatchListItem(
@@ -135,13 +155,16 @@ def list_matches(
     league_id: int | None = None,
     db: Session = Depends(get_db),
 ):
-    """比赛列表。默认返回近三日窗口内全部比赛，由前端按状态分组展示。"""
+    """比赛列表。返回近 7 日 + 未来 7 日窗口内全部比赛，由前端按状态分组展示。
+
+    窗口放宽是因为真实数据源（ESPN）的赛程可能跨周，且非比赛日时
+    需要展示最近一轮的真实结果。"""
     now = datetime.now(timezone.utc)
     q = (
         db.query(Match)
         .filter(
-            Match.kickoff_at >= now - timedelta(days=2),
-            Match.kickoff_at <= now + timedelta(days=2),
+            Match.kickoff_at >= now - timedelta(days=7),
+            Match.kickoff_at <= now + timedelta(days=7),
         )
     )
     if league_id:
@@ -160,7 +183,7 @@ def list_matches(
     ratings = _ratings_map(db)
 
     # 焦点战：未开赛场次中 Elo 之和最高的 6 场
-    scheduled = [m for m in matches if match_state(m.kickoff_at)["status"] == "scheduled"]
+    scheduled = [m for m in matches if effective_state(m)["status"] == "scheduled"]
     hot_ids = {
         m.id
         for m in sorted(
@@ -171,7 +194,7 @@ def list_matches(
     }
     items = []
     for m in matches:
-        state = match_state(m.kickoff_at)
+        state = effective_state(m)
         if status and state["status"] != status:
             continue
         items.append(_to_item(m, state, m.id in hot_ids, ratings))
@@ -181,7 +204,7 @@ def list_matches(
 @router.get("/{match_id}", response_model=MatchDetail)
 def match_detail(match_id: int, db: Session = Depends(get_db)):
     m = _get_match(db, match_id)
-    state = match_state(m.kickoff_at)
+    state = effective_state(m)
     events = _visible_events(m, state)
     item = _to_item(m, state, False, _ratings_map(db))
     pred = None
@@ -226,7 +249,7 @@ def match_detail(match_id: int, db: Session = Depends(get_db)):
 def match_statistics(match_id: int, db: Session = Depends(get_db)):
     """分钟级统计序列（进行中返回截至当前分钟）。"""
     m = _get_match(db, match_id)
-    state = match_state(m.kickoff_at)
+    state = effective_state(m)
     if state["status"] == "scheduled":
         return []
     minute = state["minute"] or 90
@@ -241,7 +264,7 @@ def match_statistics(match_id: int, db: Session = Depends(get_db)):
 def win_probability_curve(match_id: int, db: Session = Depends(get_db)):
     """实时胜率曲线：每分钟一个点，进球分钟标记 trigger=goal。"""
     m = _get_match(db, match_id)
-    state = match_state(m.kickoff_at)
+    state = effective_state(m)
     if state["status"] == "scheduled":
         return []
     pred = m.prediction
@@ -269,7 +292,7 @@ def shotmap(match_id: int, db: Session = Depends(get_db)):
     import numpy as np
 
     m = _get_match(db, match_id)
-    state = match_state(m.kickoff_at)
+    state = effective_state(m)
     if state["status"] == "scheduled":
         return ShotMap(home=[], away=[])
     events = _visible_events(m, state)
@@ -306,7 +329,7 @@ def match_report(match_id: int, db: Session = Depends(get_db)):
     from app.core.report import build_facts, generate_report
 
     m = _get_match(db, match_id)
-    state = match_state(m.kickoff_at)
+    state = effective_state(m)
     events = _visible_events(m, state)
     hs, as_ = _score(events)
     state = {**state, "home_score": hs, "away_score": as_}

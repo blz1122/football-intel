@@ -53,3 +53,4 @@ models/*.joblib
 # 日志
 logs/
 *.log
+static_old_*/
