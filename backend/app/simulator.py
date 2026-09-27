@@ -22,69 +22,69 @@ from app.models import (
     Player,
     Season,
     Team,
+    TeamRating,
 )
 
 UTC = timezone.utc
 
-# ---------------- 静态数据（真实联赛/球队观感，Elo 为示意值） ----------------
+# ---------------- 静态数据（真实联赛/球队观感，Elo 为示意值；中文名用于全站展示） ----------------
 LEAGUES: dict[str, dict] = {
-    "Premier League": {
-        "short": "EPL", "country": "England",
+    "英超": {
+        "name_en": "Premier League", "short": "英超", "country": "England",
         "teams": [
-            ("Liverpool", "LIV", "#c8102e", 1943), ("Manchester City", "MCI", "#6cabdd", 1978),
-            ("Arsenal", "ARS", "#ef0107", 1952), ("Chelsea", "CHE", "#034694", 1878),
-            ("Manchester United", "MUN", "#da291c", 1815), ("Tottenham", "TOT", "#132257", 1795),
-            ("Newcastle", "NEW", "#4d4d4d", 1822), ("Aston Villa", "AVL", "#95bfe8", 1801),
-            ("West Ham", "WHU", "#7a263a", 1725), ("Brighton", "BHA", "#0057b8", 1748),
-            ("Everton", "EVE", "#003399", 1690), ("Wolves", "WOL", "#fdb913", 1672),
+            ("利物浦", "Liverpool", "LIV", "#c8102e", 1943), ("曼城", "Manchester City", "MCI", "#6cabdd", 1978),
+            ("阿森纳", "Arsenal", "ARS", "#ef0107", 1952), ("切尔西", "Chelsea", "CHE", "#034694", 1878),
+            ("曼联", "Manchester United", "MUN", "#da291c", 1815), ("热刺", "Tottenham", "TOT", "#132257", 1795),
+            ("纽卡斯尔", "Newcastle", "NEW", "#4d4d4d", 1822), ("阿斯顿维拉", "Aston Villa", "AVL", "#95bfe8", 1801),
+            ("西汉姆联", "West Ham", "WHU", "#7a263a", 1725), ("布莱顿", "Brighton", "BHA", "#0057b8", 1748),
+            ("埃弗顿", "Everton", "EVE", "#003399", 1690), ("狼队", "Wolves", "WOL", "#fdb913", 1672),
         ],
     },
-    "La Liga": {
-        "short": "LAL", "country": "Spain",
+    "西甲": {
+        "name_en": "La Liga", "short": "西甲", "country": "Spain",
         "teams": [
-            ("Real Madrid", "RMA", "#febe10", 1990), ("Barcelona", "BAR", "#a50044", 1955),
-            ("Atletico Madrid", "ATM", "#cb3524", 1880), ("Athletic Club", "ATH", "#ee2523", 1800),
-            ("Villarreal", "VIL", "#ffe667", 1770), ("Real Betis", "BET", "#00954c", 1745),
-            ("Valencia", "VAL", "#ee8707", 1720), ("Sevilla", "SEV", "#d91a21", 1735),
-            ("Real Sociedad", "RSO", "#0067b1", 1760), ("Girona", "GIR", "#d6001c", 1785),
-            ("Celta Vigo", "CEL", "#8ac3ee", 1690), ("Osasuna", "OSA", "#d91a21", 1685),
+            ("皇家马德里", "Real Madrid", "RMA", "#febe10", 1990), ("巴塞罗那", "Barcelona", "BAR", "#a50044", 1955),
+            ("马德里竞技", "Atletico Madrid", "ATM", "#cb3524", 1880), ("毕尔巴鄂竞技", "Athletic Club", "ATH", "#ee2523", 1800),
+            ("比利亚雷亚尔", "Villarreal", "VIL", "#ffe667", 1770), ("皇家贝蒂斯", "Real Betis", "BET", "#00954c", 1745),
+            ("瓦伦西亚", "Valencia", "VAL", "#ee8707", 1720), ("塞维利亚", "Sevilla", "SEV", "#d91a21", 1735),
+            ("皇家社会", "Real Sociedad", "RSO", "#0067b1", 1760), ("赫罗纳", "Girona", "GIR", "#d6001c", 1785),
+            ("塞尔塔", "Celta Vigo", "CEL", "#8ac3ee", 1690), ("奥萨苏纳", "Osasuna", "OSA", "#d91a21", 1685),
         ],
     },
-    "Serie A": {
-        "short": "SEA", "country": "Italy",
+    "意甲": {
+        "name_en": "Serie A", "short": "意甲", "country": "Italy",
         "teams": [
-            ("Inter", "INT", "#0068a8", 1925), ("AC Milan", "MIL", "#fb090b", 1855),
-            ("Juventus", "JUV", "#003c82", 1860), ("Napoli", "NAP", "#12a0d7", 1845),
-            ("Roma", "ROM", "#8e1f2f", 1800), ("Lazio", "LAZ", "#87d8f7", 1790),
-            ("Atalanta", "ATA", "#1c1c1c", 1830), ("Fiorentina", "FIO", "#592c82", 1775),
-            ("Bologna", "BOL", "#a21c25", 1760), ("Torino", "TOR", "#8a1538", 1720),
-            ("Udinese", "UDI", "#1b1b1b", 1700), ("Genoa", "GEN", "#b4132a", 1685),
+            ("国际米兰", "Inter", "INT", "#0068a8", 1925), ("AC米兰", "AC Milan", "MIL", "#fb090b", 1855),
+            ("尤文图斯", "Juventus", "JUV", "#003c82", 1860), ("那不勒斯", "Napoli", "NAP", "#12a0d7", 1845),
+            ("罗马", "Roma", "ROM", "#8e1f2f", 1800), ("拉齐奥", "Lazio", "LAZ", "#87d8f7", 1790),
+            ("亚特兰大", "Atalanta", "ATA", "#1c1c1c", 1830), ("佛罗伦萨", "Fiorentina", "FIO", "#592c82", 1775),
+            ("博洛尼亚", "Bologna", "BOL", "#a21c25", 1760), ("都灵", "Torino", "TOR", "#8a1538", 1720),
+            ("乌迪内斯", "Udinese", "UDI", "#1b1b1b", 1700), ("热那亚", "Genoa", "GEN", "#b4132a", 1685),
         ],
     },
-    "Bundesliga": {
-        "short": "SEA-D", "country": "Germany",
+    "德甲": {
+        "name_en": "Bundesliga", "short": "德甲", "country": "Germany",
         "teams": [
-            ("Bayern Munich", "BAY", "#dc052d", 1955), ("Leverkusen", "B04", "#e32221", 1890),
-            ("Dortmund", "BVB", "#fde100", 1865), ("RB Leipzig", "RBL", "#dd0741", 1830),
-            ("Stuttgart", "VFB", "#e32219", 1800), ("Frankfurt", "SGE", "#e1000f", 1780),
-            ("Freiburg", "SCF", "#e2001a", 1735), ("Hoffenheim", "TSG", "#1c63b7", 1710),
-            ("Wolfsburg", "WOB", "#65b32e", 1725), ("Union Berlin", "FCU", "#eb1923", 1700),
-            ("Werder Bremen", "SVW", "#1d9053", 1695), ("Gladbach", "BMG", "#00a650", 1705),
+            ("拜仁慕尼黑", "Bayern Munich", "BAY", "#dc052d", 1955), ("勒沃库森", "Leverkusen", "B04", "#e32221", 1890),
+            ("多特蒙德", "Dortmund", "BVB", "#fde100", 1865), ("莱比锡红牛", "RB Leipzig", "RBL", "#dd0741", 1830),
+            ("斯图加特", "Stuttgart", "VFB", "#e32219", 1800), ("法兰克福", "Frankfurt", "SGE", "#e1000f", 1780),
+            ("弗赖堡", "Freiburg", "SCF", "#e2001a", 1735), ("霍芬海姆", "Hoffenheim", "TSG", "#1c63b7", 1710),
+            ("沃尔夫斯堡", "Wolfsburg", "WOB", "#65b32e", 1725), ("柏林联合", "Union Berlin", "FCU", "#eb1923", 1700),
+            ("云达不来梅", "Werder Bremen", "SVW", "#1d9053", 1695), ("门兴格拉德巴赫", "Gladbach", "BMG", "#00a650", 1705),
         ],
     },
-    "Ligue 1": {
-        "short": "FL1", "country": "France",
+    "法甲": {
+        "name_en": "Ligue 1", "short": "法甲", "country": "France",
         "teams": [
-            ("Paris Saint-Germain", "PSG", "#004170", 1975), ("Monaco", "ASM", "#e63312", 1810),
-            ("Marseille", "OM", "#2faee0", 1795), ("Lille", "LIL", "#e01e13", 1780),
-            ("Lyon", "OL", "#1b1f63", 1765), ("Nice", "NIC", "#c8102e", 1755),
-            ("Lens", "RCL", "#fff200", 1770), ("Rennes", "SRFC", "#e23328", 1730),
+            ("巴黎圣日耳曼", "Paris Saint-Germain", "PSG", "#004170", 1975), ("摩纳哥", "Monaco", "ASM", "#e63312", 1810),
+            ("马赛", "Marseille", "OM", "#2faee0", 1795), ("里尔", "Lille", "LIL", "#e01e13", 1780),
+            ("里昂", "Lyon", "OL", "#1b1f63", 1765), ("尼斯", "Nice", "NIC", "#c8102e", 1755),
+            ("朗斯", "Lens", "RCL", "#fff200", 1770), ("雷恩", "Rennes", "SRFC", "#e23328", 1730),
         ],
     },
 }
 
-NAME_POOLS: dict[str, list[str]] = {
-    "England": ["Smith", "Walker", "Barnes", "Hughes", "Turner", "Clarke", "Wright", "Foster",
+NAME_POOLS: dict[str, list[str]] = {    "England": ["Smith", "Walker", "Barnes", "Hughes", "Turner", "Clarke", "Wright", "Foster",
                 "Palmer", "Gordon", "Reed", "Chambers", "Doyle", "Ellis", "Grant", "Hart",
                 "Murray", "Shaw", "West", "Baker", "Cole", "Mason", "Dawson", "Henderson"],
     "Spain": ["Garcia", "Martinez", "Lopez", "Sanchez", "Fernandez", "Torres", "Ruiz", "Navas",
@@ -99,6 +99,25 @@ NAME_POOLS: dict[str, list[str]] = {
     "France": ["Martin", "Bernard", "Dubois", "Thomas", "Robert", "Richard", "Petit", "Durand",
                "Leroy", "Moreau", "Simon", "Laurent", "Michel", "Garnier", "Faure", "Rousseau",
                "Blanc", "Guerin", "Boyer", "Girard", "Bonnet", "Dupont", "Lambert", "Fontaine"],
+}
+
+# 中文译名池（与英文名池按索引对应生成）
+NAME_POOLS_CN: dict[str, list[str]] = {
+    "England": ["史密斯", "沃克", "巴恩斯", "休斯", "特纳", "克拉克", "赖特", "福斯特",
+                "帕尔默", "戈登", "里德", "钱伯斯", "多伊尔", "埃利斯", "格兰特", "哈特",
+                "默里", "肖", "韦斯特", "贝克", "科尔", "梅森", "道森", "亨德森"],
+    "Spain": ["加西亚", "马丁内斯", "洛佩斯", "桑切斯", "费尔南德斯", "托雷斯", "鲁伊斯", "纳瓦斯",
+              "莫雷诺", "奥尔特加", "伊格莱西亚斯", "卡布雷拉", "比达尔", "塞拉诺", "拉莫斯", "莫利纳",
+              "卡斯特罗", "奥尔蒂斯", "德尔加多", "巴尔加斯", "阿隆索", "多明格斯", "帕斯夸尔", "普列托"],
+    "Italy": ["罗西", "费拉里", "鲁索", "比安基", "罗马诺", "加洛", "科斯塔", "丰塔纳",
+              "孔蒂", "里奇", "马里诺", "格雷科", "布鲁诺", "塞拉", "曼奇尼", "隆戈",
+              "巴尔比耶里", "莫雷蒂", "里纳尔迪", "卡鲁索", "费拉拉", "加蒂", "莱昂内", "马尔基"],
+    "Germany": ["穆勒", "施密特", "施耐德", "菲舍尔", "韦伯", "迈尔", "瓦格纳", "贝克尔",
+                "霍夫曼", "科赫", "里希特", "克莱因", "布劳恩", "莱曼", "克劳泽", "福格尔",
+                "朗格", "施泰因", "弗兰克", "贝尔格", "温克勒", "布施", "佐默", "弗里茨"],
+    "France": ["马丁", "贝尔纳", "杜波依斯", "托马斯", "罗贝尔", "理查德", "珀蒂", "杜兰",
+               "勒鲁瓦", "莫罗", "西蒙", "洛朗", "米歇尔", "加尔尼耶", "福尔", "卢梭",
+               "布朗", "盖兰", "布瓦耶", "吉拉尔", "博内", "杜邦", "兰贝尔", "丰丹"],
 }
 
 GOAL_DETAILS = ["禁区内推射", "左脚远射世界波", "头球破门", "单刀冷静推射", "点球命中",
@@ -252,11 +271,12 @@ def seed_all(db: Session, force: bool = False) -> bool:
     today = date.today()
     rng_master = random.Random(20260927)
 
-    # 球员名池索引
+    # 球员名池索引（中/英文池按同一游标推进，保证一一对应）
     name_cursor = {c: 0 for c in NAME_POOLS}
 
     for lg_name, lg in LEAGUES.items():
-        league = League(name=lg_name, short_name=lg["short"], country=lg["country"])
+        league = League(name=lg_name, name_en=lg["name_en"],
+                        short_name=lg["short"], country=lg["country"])
         db.add(league)
         db.flush()
         season = Season(
@@ -267,35 +287,102 @@ def seed_all(db: Session, force: bool = False) -> bool:
         db.add(season)
 
         teams: list[Team] = []
-        for name, short, color, elo in lg["teams"]:
-            t = Team(league_id=league.id, name=name, short_name=short,
-                     country=lg["country"], color=color, elo_rating=float(elo),
-                     stadium=f"{name} Arena")
+        for name_cn, name_en, short, color, elo in lg["teams"]:
+            t = Team(league_id=league.id, name=name_cn, name_en=name_en,
+                     short_name=short, country=lg["country"], color=color,
+                     elo_rating=float(elo), stadium=f"{name_cn}球场")
             db.add(t)
             teams.append(t)
         db.flush()
 
-        # 每队 18 名球员：2 GK / 6 DF / 6 MF / 4 FW
+        # 每队 18 名球员：2 GK / 6 DF / 6 MF / 4 FW + 赛季汇总 + AI Rating
         squads: dict[int, list[Player]] = {}
-        for ti, t in enumerate(teams):
-            pool = NAME_POOLS[lg["country"]]
+        pos_rate = {"GK": 0.0, "DF": 0.06, "MF": 0.20, "FW": 0.48}   # 场均进球率
+        assist_rate = {"GK": 0.0, "DF": 0.08, "MF": 0.22, "FW": 0.25}
+        for t in teams:
+            pool_en = NAME_POOLS[lg["country"]]
+            pool_cn = NAME_POOLS_CN[lg["country"]]
             players: list[Player] = []
             num = 1
             for pos, count in (("GK", 2), ("DF", 6), ("MF", 6), ("FW", 4)):
                 for _ in range(count):
                     name_cursor[lg["country"]] = (
                         name_cursor[lg["country"]] + rng_master.randint(1, 3)
-                    ) % len(pool)
-                    players.append(Player(
-                        team_id=t.id, name=pool[name_cursor[lg["country"]]],
+                    ) % len(pool_en)
+                    idx = name_cursor[lg["country"]]
+                    matches_n = rng_master.randint(14, 22)
+                    goals = int(np.random.poisson(pos_rate[pos] * matches_n))
+                    assists = int(np.random.poisson(assist_rate[pos] * matches_n))
+                    base = round(rng_master.uniform(6.2, 8.6), 1)
+                    p = Player(
+                        team_id=t.id,
+                        name=pool_cn[idx], name_en=pool_en[idx],
                         position=pos, number=num,
                         age=rng_master.randint(20, 34),
-                        rating=round(rng_master.uniform(6.2, 8.6), 1),
-                    ))
+                        rating=base,
+                        status="normal",
+                    )
+                    # AI Player Rating：基础能力 + 赛季产出贡献，位置感知
+                    contribution = goals * 0.55 + assists * 0.35
+                    p.ai_rating = round(min(9.6, max(5.2, base * 0.72 + 5.8 * 0.28
+                                                     + contribution * 0.06)), 1)
+                    p.season_stats = {
+                        "matches": matches_n, "goals": goals, "assists": assists,
+                        "xg": round(goals * rng_master.uniform(0.82, 1.18), 2),
+                        "xa": round(assists * rng_master.uniform(0.8, 1.2), 2),
+                        "passes_per_match": round(rng_master.uniform(18, 62), 1),
+                        "pass_accuracy": round(rng_master.uniform(72, 93), 1),
+                        "tackles_per_match": round(
+                            {"GK": 0.2, "DF": 2.4, "MF": 1.8, "FW": 0.6}[pos]
+                            * rng_master.uniform(0.7, 1.3), 1),
+                        "interceptions_per_match": round(
+                            {"GK": 0.3, "DF": 1.6, "MF": 1.2, "FW": 0.4}[pos]
+                            * rng_master.uniform(0.7, 1.3), 1),
+                    }
+                    players.append(p)
                     num += 1
             db.add_all(players)
             squads[t.id] = players
         db.flush()
+
+        # Team Power Index：Elo 驱动 + 种子噪声，分项与近10场一并落库
+        form_pct: dict[int, float] = {}
+        for t in teams:
+            r = random.Random(t.id * 7919)
+            rel = (t.elo_rating - 1650) / 400.0        # 0~1 相对实力
+            attack = round(min(96, max(38, 40 + rel * 50 + r.uniform(-6, 6))), 1)
+            defense = round(min(96, max(38, 40 + rel * 50 + r.uniform(-6, 6))), 1)
+            form = round(min(96, max(30, 40 + rel * 45 + r.uniform(-10, 10))), 1)
+            possession = round(min(68, max(34, 46 + rel * 16 + r.uniform(-4, 4))), 1)
+            pressing = round(min(95, max(40, 45 + rel * 35 + r.uniform(-8, 8))), 1)
+            efficiency = round(min(95, max(35, 42 + rel * 40 + r.uniform(-8, 8))), 1)
+            tpi = round(attack * 0.26 + defense * 0.26 + form * 0.18
+                        + possession * 0.10 + pressing * 0.10 + efficiency * 0.10, 1)
+            # 近10场：胜率随 form，W/D/L 序列
+            p_win = form / 130.0
+            form_list = []
+            for _ in range(10):
+                u = r.random()
+                form_list.append("W" if u < p_win else ("D" if u < p_win + 0.26 else "L"))
+            # 近期状态积分率（W=3 D=1），供预测模型作为特征
+            form_pct[t.id] = round(
+                sum(3 if f == "W" else 1 if f == "D" else 0 for f in form_list) / 30.0, 3)
+            db.add(TeamRating(
+                team_id=t.id, tpi=tpi, attack=attack, defense=defense,
+                form=form, possession=possession, pressing=pressing,
+                efficiency=efficiency,
+                breakdown={
+                    "form_last10": form_list,
+                    "season": {
+                        "matches": 20,
+                        "wins": sum(1 for f in form_list if f == "W") * 2,
+                        "goals_for": round(attack / 100 * 42 + r.uniform(-4, 4)),
+                        "goals_against": round((100 - defense) / 100 * 38 + r.uniform(-4, 4)),
+                        "xg": round(attack / 100 * 40, 1),
+                        "xga": round((100 - defense) / 100 * 36, 1),
+                    },
+                },
+            ))
 
         # 赛程：昨日 3 场完赛 + 今日 7 场（2 完赛 / 3 进行中 / 2 未开始）+ 明日 3 场
         # 用时区感知的相对 kickoff，保证任何时候启动都有进行中的比赛
@@ -322,7 +409,21 @@ def seed_all(db: Session, force: bool = False) -> bool:
             db.add(m)
             db.flush()
 
-            pred = prematch(home.elo_rating, away.elo_rating)
+            pred = prematch(home.elo_rating, away.elo_rating,
+                            form_home=form_pct.get(home.id, 0.5),
+                            form_away=form_pct.get(away.id, 0.5))
+            # XGBoost 融合（logistic stacking），模型引擎见 ml/train.py
+            try:
+                from app.ml.train import blend, predict_proba
+
+                ml = predict_proba(
+                    home.elo_rating - away.elo_rating,
+                    form_pct.get(home.id, 0.5), form_pct.get(away.id, 0.5),
+                )
+                pred = blend(pred, ml)
+            except Exception as e:  # ML 不可用时保留纯 DC 基线
+                pred["model_version"] = "dc-only-v0.1"
+                print(f"[seed] ML blend skipped: {e}")
             db.add(MatchPrediction(match_id=m.id, **pred))
 
             m_events = generate_events(

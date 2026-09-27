@@ -19,4 +19,10 @@ export const api = {
   kpis: () => get<import("./types").Kpis>(`/meta/kpis`),
   topPredictions: () => get<import("./types").PredictionRankItem[]>(`/meta/predictions/top`),
   leagues: () => get<{ id: number; name: string; short_name: string }[]>(`/meta/leagues`),
+  monteCarlo: (id: number, n = 10000) =>
+    get<import("./types").MonteCarloOut>(`/matches/${id}/monte-carlo?simulations=${n}`),
+  teamProfile: (id: number) => get<import("./types").TeamProfile>(`/teams/${id}`),
+  playerProfile: (id: number) => get<import("./types").PlayerProfile>(`/players/${id}`),
+  tpiLeaderboard: (leagueId?: number) =>
+    get<Record<string, unknown>[]>(`/leaderboard/tpi${leagueId ? `?league_id=${leagueId}` : ""}`),
 };

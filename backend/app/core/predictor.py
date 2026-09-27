@@ -9,6 +9,7 @@ import numpy as np
 
 TOTAL_GOALS_BASE = 2.65  # 联赛场均总进球先验
 GRID = 8  # 单队最大进球数
+DC_RHO = -0.12  # Dixon-Coles 低比分相关修正系数
 
 
 def _poisson_pmf(lam: float, n: int = GRID) -> np.ndarray:
@@ -21,9 +22,17 @@ def _poisson_pmf(lam: float, n: int = GRID) -> np.ndarray:
 
 
 def _grid_probs(lh: float, la: float) -> tuple[float, float, float, str, dict]:
+    """Dixon-Coles 修正的比分矩阵：对 0-0/1-0/0-1/1-1 应用 tau(rho) 后归一化。"""
     ph = _poisson_pmf(lh)
     pa = _poisson_pmf(la)
     m = np.outer(ph, pa)  # m[i][j] = 主队进i球 客队进j球
+    # tau 修正（Dixon & Coles, 1997）
+    m[0][0] *= 1 - lh * la * DC_RHO
+    m[0][1] *= 1 + lh * DC_RHO
+    m[1][0] *= 1 + la * DC_RHO
+    m[1][1] *= 1 - DC_RHO
+    m = np.clip(m, 1e-10, None)
+    m /= m.sum()
     p_home = float(np.tril(m, -1).sum())  # i > j
     p_draw = float(np.trace(m))
     p_away = float(np.triu(m, 1).sum())
@@ -38,14 +47,19 @@ def _grid_probs(lh: float, la: float) -> tuple[float, float, float, str, dict]:
 
 
 def prematch(
-    elo_home: float, elo_away: float, home_advantage: float = 65.0
+    elo_home: float, elo_away: float, home_advantage: float = 65.0,
+    form_home: float = 0.5, form_away: float = 0.5,
 ) -> dict:
-    """Elo -> 期望进球强度 -> 胜平负概率与比分矩阵。"""
+    """Elo + 近期状态 -> 进球强度 -> Dixon-Coles 修正概率与比分矩阵。
+    form_*: 近10场积分率 0-1，影响 λ ±22%。"""
     diff = (elo_home + home_advantage - elo_away) / 400.0
     # 胜率期望映射到进球强度分配：强队分走更多期望进球
     share = 1 / (1 + math.exp(-diff * 4.0))  # 0.5 中性
-    lam_home = TOTAL_GOALS_BASE * share
-    lam_away = TOTAL_GOALS_BASE * (1 - share)
+    # 状态修正：好的近期表现提升本队 λ、压制对手
+    fh = 1 + (form_home - 0.5) * 0.44
+    fa = 1 + (form_away - 0.5) * 0.44
+    lam_home = TOTAL_GOALS_BASE * share * fh / ((fh + fa) / 2)
+    lam_away = TOTAL_GOALS_BASE * (1 - share) * fa / ((fh + fa) / 2)
     p_home, p_draw, p_away, exp_score, matrix = _grid_probs(lam_home, lam_away)
     top = max(p_home, p_draw, p_away)
     confidence = round(

@@ -2,7 +2,7 @@
 // 比赛详情页：比分头 + 实时胜率曲线 + 技术统计 + 事件时间线 + 射门地图 + 赛前预测
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import EChart, { CHART_COLORS, baseOption } from "@/components/charts/EChart";
 import { Panel, StatusTag, TeamBadge } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -82,12 +82,45 @@ function ShotMapChart({ map }: { map: ShotMap }) {
   );
 }
 
+function MonteCarloGrid({ matrix }: { matrix: Record<string, number> }) {
+  const rows = 5, cols = 5;
+  const grid: (number | undefined)[][] = Array.from({ length: rows }, () => Array(cols).fill(undefined));
+  Object.entries(matrix).forEach(([k, v]) => {
+    const [h, a] = k.split("-").map(Number);
+    if (h < rows && a < cols) grid[h][a] = v;
+  });
+  const color = (p: number) => {
+    const levels = ["#16264d", "#1e3a6e", "#2850a8", "#3566cf", "#4d8dff", "#7aa9ff"];
+    return levels[Math.min(5, Math.floor((p * 100) / 4))];
+  };
+  return (
+    <div className="grid text-center text-[11px]" style={{ gridTemplateColumns: `auto repeat(${cols}, 1fr)`, gap: 3 }}>
+      <div />
+      {Array.from({ length: cols }, (_, a) => (
+        <div key={`h${a}`} className="flex items-center justify-center text-[11px] font-semibold text-sub">{a}</div>
+      ))}
+      {grid.map((row, h) => (
+        <Fragment key={`r${h}`}>
+          <div className="flex items-center justify-center text-[11px] font-semibold text-sub">{h}</div>
+          {row.map((p, a) => (
+            <div key={`${h}-${a}`} className="rounded-md px-1 py-2 font-bold tabular-nums text-[#dfe8ff]"
+              style={{ background: p !== undefined ? color(p) : "#101728" }}>
+              {p !== undefined && p >= 0.01 ? `${Math.round(p * 100)}%` : ""}
+            </div>
+          ))}
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
 export default function MatchPage() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const { data } = usePolling(() => api.matchDetail(id), 10000);
   const { data: curve } = usePolling(() => api.winProbCurve(id), 15000);
   const { data: shots } = usePolling(() => api.shotMap(id), 20000);
+  const { data: mc } = usePolling(() => api.monteCarlo(id), 60000);
 
   const curveOption = useMemo(() => {
     const pts = curve ?? [];
@@ -117,7 +150,7 @@ export default function MatchPage() {
         areaStyle: i === 0 ? { opacity: 0.08, color: CHART_COLORS.home } : undefined,
         markPoint: i === 0 ? {
           symbolSize: 34,
-          data: pts.filter((p) => p.trigger === "goal").map((p) => ({ coord: [`${p.minute}'`, p[k]] })),
+          data: pts.filter((p) => p.trigger === "goal").map((p) => ({ name: "goal", coord: [`${p.minute}'`, p[k]], value: "⚽" })),
           label: { formatter: "⚽", fontSize: 12, color: CHART_COLORS.gold },
           itemStyle: { color: "transparent" },
         } : undefined,
@@ -145,7 +178,7 @@ export default function MatchPage() {
             {m.home_team.short_name}
           </span>
           <div className="text-[15px] font-extrabold">{m.home_team.name}</div>
-          <div className="text-[11.5px] text-sub">Elo {Math.round(m.home_team.elo_rating)} · 主场</div>
+          <div className="text-[11.5px] text-sub">Elo {Math.round(m.home_team.elo_rating)} · TPI {m.home_team.tpi ?? "—"} · 主场</div>
         </div>
         <div className="text-center">
           <div className="mb-1.5 text-xs text-sub">{m.league.name} · {m.round}</div>
@@ -159,7 +192,7 @@ export default function MatchPage() {
             {m.away_team.short_name}
           </span>
           <div className="text-[15px] font-extrabold">{m.away_team.name}</div>
-          <div className="text-[11.5px] text-sub">Elo {Math.round(m.away_team.elo_rating)} · 客场</div>
+          <div className="text-[11.5px] text-sub">Elo {Math.round(m.away_team.elo_rating)} · TPI {m.away_team.tpi ?? "—"} · 客场</div>
         </div>
       </section>
 
@@ -238,6 +271,53 @@ export default function MatchPage() {
                   <div className="rounded-lg bg-panel2 px-3 py-2">λ 主队 <b className="float-right text-txt">{prediction.lambda_home}</b></div>
                   <div className="rounded-lg bg-panel2 px-3 py-2">λ 客队 <b className="float-right text-txt">{prediction.lambda_away}</b></div>
                 </div>
+              </div>
+            </Panel>
+          )}
+
+          {/* Monte Carlo 模拟 */}
+          {mc && (
+            <Panel title="🎲 Monte Carlo 模拟" tag={`${mc.simulations.toLocaleString()} 次 · ${mc.model_version}`}>
+              <div className="px-4 py-4">
+                <div className="mb-3 text-xs text-sub">比分概率矩阵（行=主队进球，列=客队进球，TOP5 比分: {Object.entries(mc.score_matrix).slice(0, 5).map(([s, p]) => `${s} ${Math.round(p * 100)}%`).join(" / ")}）</div>
+                <MonteCarloGrid matrix={mc.score_matrix} />
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="rounded-lg bg-panel2 px-2 py-2">大2.5球 <b className="ml-1 text-txt">{Math.round((mc.over_under["2.5"] ?? 0) * 100)}%</b></div>
+                  <div className="rounded-lg bg-panel2 px-2 py-2">双方进球 <b className="ml-1 text-txt">{Math.round(mc.btts * 100)}%</b></div>
+                  <div className="rounded-lg bg-panel2 px-2 py-2">净胜2球+ <b className="ml-1 text-txt">—</b></div>
+                </div>
+              </div>
+            </Panel>
+          )}
+
+          {/* 球队能力雷达 */}
+          {m.home_team.radar && m.away_team.radar && (
+            <Panel title="🕸️ 球队能力对比（TPI 分项）" tag={`TPI ${m.home_team.tpi} : ${m.away_team.tpi}`}>
+              <div className="px-2 pb-2">
+                <EChart height={230} option={{
+                  ...baseOption,
+                  grid: undefined,
+                  radar: {
+                    indicator: [
+                      { name: "攻击", max: 100 }, { name: "防守", max: 100 },
+                      { name: "控球", max: 100 }, { name: "压迫", max: 100 },
+                      { name: "效率", max: 100 }, { name: "状态", max: 100 },
+                    ],
+                    radius: "62%", center: ["50%", "52%"],
+                    axisName: { color: CHART_COLORS.label, fontSize: 11 },
+                    splitLine: { lineStyle: { color: CHART_COLORS.axis } },
+                    splitArea: { show: false },
+                    axisLine: { lineStyle: { color: CHART_COLORS.axis } },
+                  },
+                  legend: { data: [m.home_team.name, m.away_team.name], textStyle: { color: CHART_COLORS.label }, bottom: 0, icon: "roundRect", itemWidth: 12 },
+                  series: [{
+                    type: "radar" as const,
+                    data: [
+                      { value: [m.home_team.radar.attack, m.home_team.radar.defense, m.home_team.radar.possession, m.home_team.radar.pressing, m.home_team.radar.efficiency, m.home_team.radar.form], name: m.home_team.name, lineStyle: { color: "#4d8dff", width: 2 }, itemStyle: { color: "#4d8dff" }, areaStyle: { opacity: 0.18, color: "#4d8dff" } },
+                      { value: [m.away_team.radar.attack, m.away_team.radar.defense, m.away_team.radar.possession, m.away_team.radar.pressing, m.away_team.radar.efficiency, m.away_team.radar.form], name: m.away_team.name, lineStyle: { color: "#ff7a45", width: 2 }, itemStyle: { color: "#ff7a45" }, areaStyle: { opacity: 0.15, color: "#ff7a45" } },
+                    ],
+                  }],
+                }} />
               </div>
             </Panel>
           )}

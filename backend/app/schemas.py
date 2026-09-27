@@ -4,12 +4,24 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class TeamRadar(BaseModel):
+    attack: float
+    defense: float
+    possession: float
+    pressing: float
+    efficiency: float
+    form: float
+
+
 class TeamBrief(BaseModel):
     id: int
     name: str
+    name_en: str
     short_name: str
     color: str
     elo_rating: float
+    tpi: float | None = None
+    radar: TeamRadar | None = None
 
 
 class LeagueBrief(BaseModel):
@@ -127,3 +139,54 @@ class PredictionRankItem(BaseModel):
     pick: str
     probability: float
     kickoff_at: datetime
+
+
+# ---------------- Phase 3：模拟 / 球队 / 球员 ----------------
+
+class MonteCarloOut(BaseModel):
+    match_id: int
+    simulations: int
+    p_home: float
+    p_draw: float
+    p_away: float
+    score_matrix: dict          # {"2-1": 0.12, ...} 按概率降序
+    over_under: dict            # {"0.5": .., "2.5": ..}
+    btts: float
+    model_version: str
+
+
+class PlayerBrief(BaseModel):
+    id: int
+    name: str
+    name_en: str
+    position: str
+    number: int
+    ai_rating: float
+    season_stats: dict
+
+
+class TeamProfile(BaseModel):
+    id: int
+    name: str
+    name_en: str
+    short_name: str
+    color: str
+    league: LeagueBrief
+    elo_rating: float
+    stadium: str | None
+    tpi: float
+    radar: TeamRadar
+    breakdown: dict             # season 明细 + form_last10
+    squad: list[PlayerBrief]
+
+
+class PlayerProfile(BaseModel):
+    id: int
+    name: str
+    name_en: str
+    position: str
+    number: int
+    age: int
+    team: TeamBrief
+    ai_rating: float
+    season_stats: dict

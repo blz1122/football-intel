@@ -1,0 +1,1 @@
+{"engine": "xgboost", "features": ["elo_diff", "form_home", "form_away", "rest_home", "rest_away", "is_neutral"], "train_size": 6000, "train_acc": null}

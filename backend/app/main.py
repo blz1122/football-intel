@@ -11,13 +11,20 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.db import Base, SessionLocal, engine
-from app.routers import matches, meta
+from app.routers import matches, meta, teams
 from app.simulator import seed_all
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    # 训练/加载 XGBoost 模型（缺失时自动训练，依赖缺失自动降级）
+    try:
+        from app.ml.train import ensure_model
+
+        print(f"[boot] ML model: {ensure_model()}")
+    except Exception as e:
+        print(f"[boot] ML model unavailable, DC-only mode: {e}")
     db = SessionLocal()
     try:
         seeded = seed_all(db)
@@ -38,6 +45,7 @@ app.add_middleware(
 
 app.include_router(matches.router)
 app.include_router(meta.router)
+app.include_router(teams.router)
 
 
 @app.get("/api/v1/health")

@@ -26,7 +26,8 @@ def utcnow() -> datetime:
 class League(Base):
     __tablename__ = "leagues"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(80))        # 中文名（展示）
+    name_en: Mapped[str] = mapped_column(String(80), default="")
     short_name: Mapped[str] = mapped_column(String(16))
     country: Mapped[str] = mapped_column(String(60))
     logo_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -48,7 +49,8 @@ class Team(Base):
     __tablename__ = "teams"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
-    name: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(80))        # 中文名（展示）
+    name_en: Mapped[str] = mapped_column(String(80), default="")
     short_name: Mapped[str] = mapped_column(String(8))
     country: Mapped[str] = mapped_column(String(60))
     color: Mapped[str] = mapped_column(String(9), default="#3b4b70")  # 主题色
@@ -64,11 +66,14 @@ class Player(Base):
     __tablename__ = "players"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"))
-    name: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(80))        # 中文名（展示）
+    name_en: Mapped[str] = mapped_column(String(80), default="")
     position: Mapped[str] = mapped_column(String(2))  # GK/DF/MF/FW
     number: Mapped[int] = mapped_column(SmallInteger)
     age: Mapped[int] = mapped_column(SmallInteger, default=25)
     rating: Mapped[float] = mapped_column(Float, default=7.0)  # 基础能力 6-8.5
+    ai_rating: Mapped[float] = mapped_column(Float, default=6.5)  # AI Player Rating 0-10
+    season_stats: Mapped[dict] = mapped_column(JSON, default=dict)  # 赛季汇总
     status: Mapped[str] = mapped_column(String(12), default="normal")  # normal/injured/suspended
     injury_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -143,3 +148,35 @@ class WinProbSnapshot(Base):
     p_draw: Mapped[float] = mapped_column(Float)
     p_away: Mapped[float] = mapped_column(Float)
     trigger: Mapped[str] = mapped_column(String(12), default="minute")
+
+
+class TeamRating(Base):
+    """Team Power Index 及分项（Phase 3）。"""
+    __tablename__ = "team_ratings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    tpi: Mapped[float] = mapped_column(Float)          # 综合 0-100
+    attack: Mapped[float] = mapped_column(Float)
+    defense: Mapped[float] = mapped_column(Float)
+    form: Mapped[float] = mapped_column(Float)
+    possession: Mapped[float] = mapped_column(Float, default=50)
+    pressing: Mapped[float] = mapped_column(Float, default=50)
+    efficiency: Mapped[float] = mapped_column(Float, default=50)
+    breakdown: Mapped[dict] = mapped_column(JSON, default=dict)  # 赛季明细 + 近10场
+
+
+class MonteCarloResult(Base):
+    """Monte Carlo 模拟结果缓存（Phase 3）。"""
+    __tablename__ = "monte_carlo_results"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    match_id: Mapped[int] = mapped_column(
+        ForeignKey("matches.id"), unique=True, index=True
+    )
+    simulations: Mapped[int] = mapped_column(Integer, default=10000)
+    p_home: Mapped[float] = mapped_column(Float)
+    p_draw: Mapped[float] = mapped_column(Float)
+    p_away: Mapped[float] = mapped_column(Float)
+    score_matrix: Mapped[dict] = mapped_column(JSON)   # {"1-0": 0.23, ...}
+    over_under: Mapped[dict] = mapped_column(JSON)     # {"0.5": ..., "2.5": ...}
+    btts: Mapped[float] = mapped_column(Float)
+    model_version: Mapped[str] = mapped_column(String(32), default="dc-mc-v0.2")

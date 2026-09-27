@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.predictor import inmatch
-from app.models import Match, MatchPrediction
+from app.models import Match, MatchPrediction, TeamRating
 from app.schemas import (
     CurvePoint,
     EventOut,
@@ -15,10 +15,12 @@ from app.schemas import (
     LiveStats,
     MatchDetail,
     MatchListItem,
+    MonteCarloOut,
     PredictionOut,
     ShotMap,
     ShotOut,
     TeamBrief,
+    TeamRadar,
     WinProb,
 )
 from app.simulator import match_state, stats_series
@@ -27,6 +29,24 @@ router = APIRouter(prefix="/api/v1/matches", tags=["matches"])
 
 
 # ---------------- 内部工具 ----------------
+def _ratings_map(db: Session) -> dict[int, TeamRating]:
+    return {r.team_id: r for r in db.query(TeamRating).all()}
+
+
+def _team_brief(t, rating: TeamRating | None) -> TeamBrief:
+    radar = None
+    tpi = None
+    if rating:
+        tpi = rating.tpi
+        radar = TeamRadar(
+            attack=rating.attack, defense=rating.defense,
+            possession=rating.possession, pressing=rating.pressing,
+            efficiency=rating.efficiency, form=rating.form,
+        )
+    return TeamBrief(
+        id=t.id, name=t.name, name_en=t.name_en, short_name=t.short_name,
+        color=t.color, elo_rating=t.elo_rating, tpi=tpi, radar=radar,
+    )
 def _get_match(db: Session, match_id: int) -> Match:
     m = db.get(Match, match_id)
     if not m:
@@ -83,10 +103,12 @@ def _live_stats(m: Match, state: dict, events) -> LiveStats | None:
     return LiveStats(**last)
 
 
-def _to_item(m: Match, state: dict, hot: bool) -> MatchListItem:
+def _to_item(m: Match, state: dict, hot: bool,
+             ratings: dict[int, TeamRating] | None = None) -> MatchListItem:
     events = _visible_events(m, state)
     hs, as_ = _score(events)
     pred = m.prediction
+    ratings = ratings or {}
     return MatchListItem(
         id=m.id,
         league=LeagueBrief(id=m.league.id, name=m.league.name,
@@ -98,16 +120,8 @@ def _to_item(m: Match, state: dict, hot: bool) -> MatchListItem:
         minute=state["minute"],
         home_score=hs,
         away_score=as_,
-        home_team=TeamBrief(
-            id=m.home_team.id, name=m.home_team.name,
-            short_name=m.home_team.short_name, color=m.home_team.color,
-            elo_rating=m.home_team.elo_rating,
-        ),
-        away_team=TeamBrief(
-            id=m.away_team.id, name=m.away_team.name,
-            short_name=m.away_team.short_name, color=m.away_team.color,
-            elo_rating=m.away_team.elo_rating,
-        ),
+        home_team=_team_brief(m.home_team, ratings.get(m.home_team_id)),
+        away_team=_team_brief(m.away_team, ratings.get(m.away_team_id)),
         win_prob=_win_prob(m, state, hs, as_, pred),
         live_stats=_live_stats(m, state, events),
         is_hot=hot,
@@ -133,6 +147,7 @@ def list_matches(
     if league_id:
         q = q.filter(Match.league_id == league_id)
     matches = q.order_by(Match.kickoff_at).all()
+    ratings = _ratings_map(db)
 
     # 焦点战：未开赛场次中 Elo 之和最高的 6 场
     scheduled = [m for m in matches if match_state(m.kickoff_at)["status"] == "scheduled"]
@@ -149,7 +164,7 @@ def list_matches(
         state = match_state(m.kickoff_at)
         if status and state["status"] != status:
             continue
-        items.append(_to_item(m, state, m.id in hot_ids))
+        items.append(_to_item(m, state, m.id in hot_ids, ratings))
     return items
 
 
@@ -158,7 +173,7 @@ def match_detail(match_id: int, db: Session = Depends(get_db)):
     m = _get_match(db, match_id)
     state = match_state(m.kickoff_at)
     events = _visible_events(m, state)
-    item = _to_item(m, state, False)
+    item = _to_item(m, state, False, _ratings_map(db))
     pred = None
     if m.prediction:
         pred = PredictionOut(
@@ -270,3 +285,45 @@ def shotmap(match_id: int, db: Session = Depends(get_db)):
         home=_shots(n_home, g_home, (0.62, 0.95), 101),
         away=_shots(n_away, g_away, (0.05, 0.38), 202),
     )
+
+
+@router.get("/{match_id}/monte-carlo", response_model=MonteCarloOut)
+def monte_carlo(match_id: int, simulations: int = 10000, db: Session = Depends(get_db)):
+    """Monte Carlo 比赛模拟：10,000 次采样 -> 比分矩阵 / 大小球 / BTTS。
+    结果按 (match_id, simulations) 缓存。"""
+    from fastapi import HTTPException as _HE
+
+    from app.ml.monte_carlo import simulate
+    from app.models import MonteCarloResult
+
+    if not (1000 <= simulations <= 50000):
+        raise _HE(400, "simulations 必须在 1000-50000 之间")
+    m = _get_match(db, match_id)
+    if not m.prediction or not m.prediction.score_matrix:
+        raise _HE(404, "MODEL_NOT_READY")
+
+    cached = (
+        db.query(MonteCarloResult)
+        .filter(MonteCarloResult.match_id == match_id,
+                MonteCarloResult.simulations == simulations)
+        .first()
+    )
+    if cached:
+        return MonteCarloOut(
+            match_id=match_id, simulations=cached.simulations,
+            p_home=cached.p_home, p_draw=cached.p_draw, p_away=cached.p_away,
+            score_matrix=cached.score_matrix, over_under=cached.over_under,
+            btts=cached.btts, model_version=cached.model_version,
+        )
+
+    result = simulate(m.prediction.score_matrix, n=simulations, seed=m.sim_seed)
+    row = MonteCarloResult(
+        match_id=match_id, simulations=simulations,
+        p_home=result["p_home"], p_draw=result["p_draw"], p_away=result["p_away"],
+        score_matrix=result["score_matrix"], over_under=result["over_under"],
+        btts=result["btts"],
+    )
+    db.add(row)
+    db.commit()
+    return MonteCarloOut(match_id=match_id, simulations=simulations,
+                         model_version=row.model_version, **result)

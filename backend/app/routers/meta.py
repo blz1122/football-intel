@@ -83,7 +83,7 @@ def top_predictions(db: Session = Depends(get_db)):
         p = m.prediction
         probs = (p.p_home, p.p_draw, p.p_away)
         pick_i = max(range(3), key=lambda i: probs[i])
-        pick = f"{m.home_team.short_name} 胜 / 平 / {m.away_team.short_name} 胜".split(" / ")[pick_i]
+        pick = [f"{m.home_team.name} 胜", "平局", f"{m.away_team.name} 胜"][pick_i]
         items.append(PredictionRankItem(
             match_id=m.id,
             title=f"{m.home_team.short_name} vs {m.away_team.short_name}",

@@ -1,11 +1,23 @@
 // API 类型定义 —— 与 backend/app/schemas.py 对齐
 
+export interface TeamRadar {
+  attack: number;
+  defense: number;
+  possession: number;
+  pressing: number;
+  efficiency: number;
+  form: number;
+}
+
 export interface TeamBrief {
   id: number;
   name: string;
+  name_en: string;
   short_name: string;
   color: string;
   elo_rating: number;
+  tpi: number | null;
+  radar: TeamRadar | null;
 }
 
 export interface LeagueBrief {
@@ -119,4 +131,58 @@ export interface PredictionRankItem {
   pick: string;
   probability: number;
   kickoff_at: string;
+}
+
+// ---------------- Phase 3 ----------------
+
+export interface MonteCarloOut {
+  match_id: number;
+  simulations: number;
+  p_home: number;
+  p_draw: number;
+  p_away: number;
+  score_matrix: Record<string, number>;
+  over_under: Record<string, number>;
+  btts: number;
+  model_version: string;
+}
+
+export interface PlayerBrief {
+  id: number;
+  name: string;
+  name_en: string;
+  position: string;
+  number: number;
+  ai_rating: number;
+  season_stats: Record<string, number>;
+}
+
+export interface TeamProfile {
+  id: number;
+  name: string;
+  name_en: string;
+  short_name: string;
+  color: string;
+  league: LeagueBrief;
+  elo_rating: number;
+  stadium: string | null;
+  tpi: number;
+  radar: TeamRadar;
+  breakdown: {
+    form_last10?: string[];
+    season?: Record<string, number>;
+  };
+  squad: PlayerBrief[];
+}
+
+export interface PlayerProfile {
+  id: number;
+  name: string;
+  name_en: string;
+  position: string;
+  number: number;
+  age: number;
+  team: TeamBrief;
+  ai_rating: number;
+  season_stats: Record<string, number>;
 }
