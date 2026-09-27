@@ -1,0 +1,122 @@
+// API 类型定义 —— 与 backend/app/schemas.py 对齐
+
+export interface TeamBrief {
+  id: number;
+  name: string;
+  short_name: string;
+  color: string;
+  elo_rating: number;
+}
+
+export interface LeagueBrief {
+  id: number;
+  name: string;
+  short_name: string;
+}
+
+export interface WinProb {
+  home: number;
+  draw: number;
+  away: number;
+}
+
+export interface LiveStats {
+  minute: number;
+  possession_home: number;
+  shots_home: number;
+  shots_away: number;
+  shots_on_target_home: number;
+  shots_on_target_away: number;
+  corners_home: number;
+  corners_away: number;
+  fouls_home: number;
+  fouls_away: number;
+  yellow_home: number;
+  yellow_away: number;
+  red_home: number;
+  red_away: number;
+  dangerous_home: number;
+  dangerous_away: number;
+  xg_home: number;
+  xg_away: number;
+}
+
+export interface MatchListItem {
+  id: number;
+  league: LeagueBrief;
+  round: string | null;
+  kickoff_at: string;
+  status: "scheduled" | "live" | "halftime" | "finished";
+  period: string | null;
+  minute: number | null;
+  home_score: number;
+  away_score: number;
+  home_team: TeamBrief;
+  away_team: TeamBrief;
+  win_prob: WinProb;
+  live_stats: LiveStats | null;
+  is_hot: boolean;
+}
+
+export interface EventOut {
+  minute: number;
+  side: "home" | "away";
+  type: "goal" | "yellow_card" | "red_card" | "substitution";
+  player: string | null;
+  related_player: string | null;
+  detail: string | null;
+}
+
+export interface PredictionOut {
+  model_version: string;
+  p_home: number;
+  p_draw: number;
+  p_away: number;
+  lambda_home: number;
+  lambda_away: number;
+  confidence: number;
+  expected_score: string;
+  score_matrix: Record<string, number>;
+}
+
+export interface MatchDetail {
+  match: MatchListItem;
+  events: EventOut[];
+  prediction: PredictionOut | null;
+}
+
+export interface CurvePoint {
+  minute: number;
+  p_home: number;
+  p_draw: number;
+  p_away: number;
+  trigger: string;
+}
+
+export interface ShotOut {
+  x: number;
+  y: number;
+  xg: number;
+  goal: boolean;
+}
+
+export interface ShotMap {
+  home: ShotOut[];
+  away: ShotOut[];
+}
+
+export interface Kpis {
+  total_today: number;
+  live_now: number;
+  finished_today: number;
+  accuracy_7d: number;
+  brier_score: number;
+}
+
+export interface PredictionRankItem {
+  match_id: number;
+  title: string;
+  pick: string;
+  probability: number;
+  kickoff_at: string;
+}
