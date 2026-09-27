@@ -14,3 +14,53 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Phase 5 UI 升级 ---------- */
+
+/* 骨架屏微光扫过 */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #131c31 25%, #1c2846 40%, #131c31 55%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: 6px;
+}
+
+/* 卡片入场：上浮 + 淡入 */
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise-in {
+  animation: riseIn 0.45s cubic-bezier(0.22, 0.8, 0.36, 1) both;
+}
+
+/* 页面级入场（顶部内容整体淡入） */
+@keyframes pageIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.page-in { animation: pageIn 0.35s ease both; }
+
+/* 比分变化闪烁：金色高亮后回落 */
+@keyframes scoreFlash {
+  0% { color: #ffd75e; text-shadow: 0 0 14px rgba(255, 200, 60, 0.75); transform: scale(1.28); }
+  100% { color: inherit; text-shadow: none; transform: scale(1); }
+}
+.score-flash {
+  display: inline-block;
+  animation: scoreFlash 1.1s ease-out both;
+}
+
+/* 进度条平滑过渡（胜率条） */
+.prob-seg {
+  transition: width 0.9s cubic-bezier(0.22, 0.8, 0.36, 1);
+}
+
+/* 移动端安全区与点击反馈 */
+@media (hover: none) {
+  .tap-target:active { opacity: 0.75; }
+}

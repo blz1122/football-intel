@@ -11,9 +11,21 @@ venv/
 # Node
 node_modules/
 .next/
+.next-*/
+.next-old-*
+.next-stale-*/
+.next-broken/
 out/
 *.tsbuildinfo
 .eslintcache
+
+# 桌面打包产物（PyInstaller）
+backend/static/
+backend/static-old*/
+backend/build/
+backend/dist/
+backend/*.spec
+frontend/.desktop-export
 
 # 环境与密钥
 .env

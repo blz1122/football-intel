@@ -1,0 +1,68 @@
+# Football Intelligence Platform —— 生产部署
+#
+#   docker compose up -d --build
+#
+# 服务：
+#   db       PostgreSQL 16（比赛/球队/球员/预测数据）
+#   backend  FastAPI + AI 模型（Dixon-Coles + XGBoost）+ WebSocket
+#   frontend Next.js standalone（API 反代到 backend）
+#
+# 环境变量（可写进同目录 .env）：
+#   POSTGRES_PASSWORD  数据库密码（默认 football_intel）
+#   DATA_PROVIDER      mock | api_football
+#   API_FOOTBALL_KEY   真实数据源 API key（DATA_PROVIDER=api_football 时必填）
+#   OPENAI_API_KEY     可选，AI 报告 LLM 润色
+#   NEXT_PUBLIC_WS_URL 浏览器 WS 地址（跨机访问时改为 ws://<宿主IP>:8000/api/v1/ws/matches）
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: football
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-football_intel}
+      POSTGRES_DB: football_intel
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 首次启动自动执行建表 DDL（应用启动时 SQLAlchemy 也会 create_all，二者幂等）
+      - ../db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U football -d football_intel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://football:${POSTGRES_PASSWORD:-football_intel}@db:5432/football_intel
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      DATA_PROVIDER: ${DATA_PROVIDER:-mock}
+      API_FOOTBALL_KEY: ${API_FOOTBALL_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      WS_PUSH_INTERVAL: "5"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ml_models:/app/ml_models
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        BACKEND_INTERNAL_URL: http://backend:8000
+        # 从其他机器访问时改为 ws://<宿主IP>:8000/api/v1/ws/matches
+        NEXT_PUBLIC_WS_URL: ws://localhost:8000/api/v1/ws/matches
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  ml_models:

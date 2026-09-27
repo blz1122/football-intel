@@ -1,5 +1,35 @@
-// 通用小组件：比赛队徽圆标、状态标签、概率条
+// 通用小组件：比赛队徽圆标、状态标签、概率条、骨架屏
 import type { TeamBrief } from "@/lib/types";
+
+export function Skeleton({ className = "", style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={`skeleton ${className}`} style={style} />;
+}
+
+/** 比赛行骨架屏：Dashboard 首屏加载占位 */
+export function MatchRowSkeleton() {
+  return (
+    <div className="grid grid-cols-[130px_1fr_auto] items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 md:grid-cols-[150px_1fr_200px_130px]">
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-14" />
+        <Skeleton className="h-3 w-16" />
+      </div>
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-5 w-5 rounded-full" />
+          <Skeleton className="h-3.5 w-36" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-5 w-5 rounded-full" />
+          <Skeleton className="h-3.5 w-28" />
+        </div>
+      </div>
+      <div className="hidden flex-col items-end gap-2 md:flex">
+        <Skeleton className="h-4 w-16 rounded-full" />
+        <Skeleton className="h-1.5 w-40" />
+      </div>
+    </div>
+  );
+}
 
 export function TeamBadge({ team, size = 20 }: { team: TeamBrief; size?: number }) {
   return (
@@ -47,7 +77,7 @@ export function ProbBar({ p }: { p: { home: number; draw: number; away: number }
     <div className="flex flex-col gap-1">
       <div className="flex h-1.5 w-full overflow-hidden rounded bg-base2">
         {segments.map((s, i) => (
-          <i key={i} style={{ width: `${(s.v / total) * 100}%`, background: s.c }} />
+          <i key={i} className="prob-seg" style={{ width: `${(s.v / total) * 100}%`, background: s.c }} />
         ))}
       </div>
       <div className="flex justify-between text-[10.5px] text-sub tabular-nums">

@@ -44,10 +44,21 @@ export default function MatchRow({ m }: { m: MatchListItem }) {
           <span className="text-xs text-sub">vs</span>
         ) : (
           <div className="flex gap-2 tabular-nums">
-            <span className={`min-w-7 rounded border px-2 py-0.5 text-center text-base font-extrabold ${m.home_score >= m.away_score ? "border-[#4d3d1c] text-gold" : "border-line2 text-txt"} bg-base2`}>
+            {/* key 含比分值：比分变化时重新挂载触发 scoreFlash 动画 */}
+            <span
+              key={m.home_score}
+              className={`score-flash min-w-7 rounded border px-2 py-0.5 text-center text-base font-extrabold ${
+                m.home_score >= m.away_score ? "border-[#4d3d1c] text-gold" : "border-line2 text-txt"
+              } bg-base2`}
+            >
               {m.home_score}
             </span>
-            <span className={`min-w-7 rounded border px-2 py-0.5 text-center text-base font-extrabold ${m.away_score >= m.home_score ? "border-[#4d3d1c] text-gold" : "border-line2 text-txt"} bg-base2`}>
+            <span
+              key={m.away_score}
+              className={`score-flash min-w-7 rounded border px-2 py-0.5 text-center text-base font-extrabold ${
+                m.away_score >= m.home_score ? "border-[#4d3d1c] text-gold" : "border-line2 text-txt"
+              } bg-base2`}
+            >
               {m.away_score}
             </span>
           </div>

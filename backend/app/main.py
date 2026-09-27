@@ -68,3 +68,15 @@ app.include_router(ws_layer.router)
 @app.get("/api/v1/health")
 def health():
     return {"status": "ok", "version": settings.VERSION}
+
+
+# ---------------- Phase 5: 桌面版静态前端托管 ----------------
+# build_desktop.py 会把 Next 静态导出产物放入 backend/static/；
+# 目录存在时 FastAPI 直接托管（同源访问 API + WS，零 CORS）。
+from pathlib import Path
+
+from fastapi.staticfiles import StaticFiles
+
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+if _STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(_STATIC_DIR), html=True), name="frontend")

@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+football_intel.db
+ml_models
+__pycache__
+*.pyc
+.env

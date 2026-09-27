@@ -63,6 +63,8 @@ football-intel/
 │   └── ROADMAP.md           # 开发路线图
 ├── db/
 │   └── schema.sql           # PostgreSQL DDL
+├── deploy/
+│   └── docker-compose.yml   # 生产部署（PostgreSQL + backend + frontend）
 ├── design/
 │   └── ui-prototype.html    # 高保真 UI 原型（深色科技风）
 ├── backend/                 # FastAPI（Phase 2+）
@@ -71,7 +73,9 @@ football-intel/
 │   ├── app/routers/         # 路由（比赛 / 元数据 / 球队 / 系统）
 │   ├── app/ws.py            # WebSocket 连接管理与广播
 │   ├── app/ml/              # XGBoost 训练 / Monte Carlo
-│   └── run.py               # 启动脚本
+│   ├── run.py               # Web 启动脚本
+│   ├── desktop.py           # 桌面版入口（静态前端 + FastAPI 单进程）
+│   └── build_desktop.py     # Windows 客户端一键打包
 ├── frontend/                # Next.js（Phase 2+）
 │   ├── app/                 # App Router 页面
 │   ├── components/          # UI 组件
@@ -101,13 +105,39 @@ npm run dev          # http://localhost:3000
 
 打开 Dashboard 即可看到实时比赛、AI 预测排行与 WebSocket 实时推送。
 
+## 🐳 Docker 生产部署
+
+```bash
+cd deploy
+docker compose up -d --build
+# frontend  -> http://localhost:3000
+# backend   -> http://localhost:8000/docs
+# PostgreSQL 16（数据持久化卷 pgdata，首次启动自动执行 db/schema.sql）
+```
+
+可选环境变量（写入 `deploy/.env`）：`POSTGRES_PASSWORD`、`DATA_PROVIDER=api_football`、
+`API_FOOTBALL_KEY`、`OPENAI_API_KEY`；跨机访问时把 `NEXT_PUBLIC_WS_URL` 改为
+`ws://<宿主IP>:8000/api/v1/ws/matches` 后重新 build frontend。
+
+## 🖥️ Windows 桌面客户端（单进程，免安装依赖）
+
+前端静态导出与 FastAPI 合体打包为 exe，双击自动启动并打开浏览器：
+
+```bash
+cd backend
+python build_desktop.py          # 完整版（含 XGBoost / sklearn）
+python build_desktop.py --slim   # 精简版（Dixon-Coles 基线，体积约 1/10）
+```
+
+产物：`backend/dist/FootballIntel/FootballIntel.exe`。
+
 ## 🗺️ 开发阶段
 
 - **Phase 1** ✅ 产品架构设计 · 仓库初始化 · 数据库设计 · UI 原型
 - **Phase 2** ✅ Dashboard · 比赛数据模块 · 数据接口（FastAPI + Next.js + 模拟引擎）
 - **Phase 3** ✅ Dixon-Coles + XGBoost 融合 · Monte Carlo · TPI/球员评分 · 全站中文化
 - **Phase 4** ✅ Provider 适配层（可接真实 API） · WebSocket 实时推送 · 缓存/压缩优化 · AI 报告引擎
-- **Phase 5** ⏳ UI 升级 · 部署 · Windows 客户端打包
+- **Phase 5** ✅ UI 升级（骨架屏/动效/移动端） · Docker 部署 · Windows 客户端打包
 
 详见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 

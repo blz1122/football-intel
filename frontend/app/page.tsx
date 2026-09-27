@@ -3,7 +3,7 @@
 // Phase 4: WebSocket 5s 实时推送 + 30s REST 兜底轮询
 import { useMemo, useState } from "react";
 import MatchRow from "@/components/MatchRow";
-import { Panel } from "@/components/ui";
+import { MatchRowSkeleton, Panel, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { MatchListItem } from "@/lib/types";
 import { useLiveSocket } from "@/lib/useLiveSocket";
@@ -23,7 +23,7 @@ function groupOf(m: MatchListItem) {
 }
 
 export default function Dashboard() {
-  const { data: matches } = usePolling(() => api.matches(), 30000);
+  const { data: matches, loading } = usePolling(() => api.matches(), 30000);
   const { data: kpis } = usePolling(() => api.kpis(), 30000);
   const { data: top } = usePolling(() => api.topPredictions(), 30000);
   const { data: leagues } = usePolling(() => api.leagues(), 300000);
@@ -70,11 +70,15 @@ export default function Dashboard() {
   ];
 
   return (
-    <div>
+    <div className="page-in">
       {/* KPI 行 */}
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {kpiCards.map((k) => (
-          <div key={k.l} className="rounded-xl border border-line bg-panel px-4 py-3.5">
+        {kpiCards.map((k, i) => (
+          <div
+            key={k.l}
+            className="rise-in rounded-xl border border-line bg-panel px-4 py-3.5 transition-colors hover:border-[#28437f]"
+            style={{ animationDelay: `${i * 60}ms` }}
+          >
             <div className="mb-1.5 text-xs text-sub">{k.l}</div>
             <div className="text-2xl font-extrabold tabular-nums">{k.v}</div>
             <div className="mt-1 text-[11px] font-semibold text-sub">{k.t}</div>
@@ -89,7 +93,7 @@ export default function Dashboard() {
           tag={connected ? "WebSocket 实时推送" : "REST 轮询"}
           dot={connected ? "#22c58b" : "#f5b342"}
         >
-          <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+          <div id="scheduled" className="flex scroll-mt-20 flex-wrap gap-1.5 px-4 pt-3">
             {TABS.map((t) => {
               const count =
                 t.key === "all"
@@ -123,35 +127,56 @@ export default function Dashboard() {
             </select>
           </div>
           <div className="mt-3">
-            {filtered.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-sub">该筛选条件下暂无比赛</div>
+            {loading ? (
+              <>
+                {Array.from({ length: 6 }, (_, i) => (
+                  <MatchRowSkeleton key={i} />
+                ))}
+              </>
+            ) : filtered.length === 0 ? (
+              <div className="px-4 py-12 text-center">
+                <div className="mb-2 text-2xl opacity-40">🕳️</div>
+                <div className="text-sm text-sub">该筛选条件下暂无比赛</div>
+              </div>
             ) : (
-              filtered.map((m) => <MatchRow key={m.id} m={m} />)
+              filtered.map((m, i) => (
+                <div key={m.id} className="rise-in" style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}>
+                  <MatchRow m={m} />
+                </div>
+              ))
             )}
           </div>
         </Panel>
 
         {/* 右栏 */}
-        <div className="flex flex-col gap-4">
+        <div id="top" className="flex scroll-mt-20 flex-col gap-4">
           <Panel title="🤖 AI 预测排行" tag="今日置信度 TOP">
-            <ul>
-              {(top ?? []).map((p, i) => (
-                <li key={p.match_id} className="flex items-center gap-2.5 border-b border-line px-4 py-2.5 text-[13px] last:border-b-0">
-                  <span className={`w-5 text-center font-extrabold ${i < 3 ? "text-gold" : "text-sub"}`}>
-                    {i + 1}
-                  </span>
-                  <span className="flex-1 truncate font-semibold">
-                    {p.title} · {p.pick}
-                  </span>
-                  <span className="font-extrabold tabular-nums text-[#9db9ff]">
-                    {Math.round(p.probability * 100)}%
-                  </span>
-                </li>
-              ))}
-              {top?.length === 0 && (
-                <li className="px-4 py-8 text-center text-sm text-sub">今日暂无未开赛比赛</li>
-              )}
-            </ul>
+            {!top ? (
+              <div className="space-y-3 px-4 py-4">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Skeleton key={i} className="h-5 w-full" />
+                ))}
+              </div>
+            ) : (
+              <ul>
+                {top.map((p, i) => (
+                  <li key={p.match_id} className="flex items-center gap-2.5 border-b border-line px-4 py-2.5 text-[13px] last:border-b-0">
+                    <span className={`w-5 text-center font-extrabold ${i < 3 ? "text-gold" : "text-sub"}`}>
+                      {i + 1}
+                    </span>
+                    <span className="flex-1 truncate font-semibold">
+                      {p.title} · {p.pick}
+                    </span>
+                    <span className="font-extrabold tabular-nums text-[#9db9ff]">
+                      {Math.round(p.probability * 100)}%
+                    </span>
+                  </li>
+                ))}
+                {top.length === 0 && (
+                  <li className="px-4 py-8 text-center text-sm text-sub">今日暂无未开赛比赛</li>
+                )}
+              </ul>
+            )}
           </Panel>
 
           <Panel title="🔥 热门赛事" tag="Elo 实力榜">
