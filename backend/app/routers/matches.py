@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.predictor import inmatch
+from app.ingest.espn import zh_event_detail
 from app.models import Match, MatchPrediction, TeamRating
 from app.schemas import (
     CurvePoint,
@@ -245,6 +246,7 @@ def match_detail(match_id: int, db: Session = Depends(get_db)):
                 related_player_id=e.related_player_id,
                 related_player=_name(e.related_player_id),
                 detail=e.detail,
+                detail_cn=zh_event_detail(e.detail, e.type),
             )
             for e in events
         ],
@@ -338,7 +340,7 @@ def match_report(match_id: int, db: Session = Depends(get_db)):
     m = _get_match(db, match_id)
     state = effective_state(m)
     events = _visible_events(m, state)
-    hs, as_ = _score(events)
+    hs, as_ = _score(m, events)
     state = {**state, "home_score": hs, "away_score": as_}
     stats = _live_stats(m, state, events)
     if not m.prediction:

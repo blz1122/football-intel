@@ -111,6 +111,59 @@ def _detail_budget() -> int:
 # ESPN 队名 -> 中文名（覆盖常见升降级球队；其余走 name_en 归一化匹配）
 TEAM_CN: dict[str, str] = {
     "Manchester City": "曼城",
+    "Man City": "曼城",
+    "Man Utd": "曼联",
+    "Man United": "曼联",
+    "Tottenham": "热刺",
+    "Brighton": "布莱顿",
+    "Nott'm Forest": "诺丁汉森林",
+    "Newcastle": "纽卡斯尔",
+    "West Ham": "西汉姆联",
+    "Wolves": "狼队",
+    "Inter": "国际米兰",
+    "Inter Milan": "国际米兰",
+    "AC Milan": "AC米兰",
+    "Juventus": "尤文图斯",
+    "Napoli": "那不勒斯",
+    "Lazio": "拉齐奥",
+    "Fiorentina": "佛罗伦萨",
+    "Bayern": "拜仁慕尼黑",
+    "Bayern Munich": "拜仁慕尼黑",
+    "Dortmund": "多特蒙德",
+    "Borussia Dortmund": "多特蒙德",
+    "Leverkusen": "勒沃库森",
+    "Bayer Leverkusen": "勒沃库森",
+    "PSG": "巴黎圣日耳曼",
+    "Paris Saint-Germain": "巴黎圣日耳曼",
+    "Paris SG": "巴黎圣日耳曼",
+    "Marseille": "马赛",
+    "Monaco": "摩纳哥",
+    "Lyon": "里昂",
+    "Lille": "里尔",
+    "Nice": "尼斯",
+    "Ajax": "阿贾克斯",
+    "PSV": "埃因霍温",
+    "Feyenoord": "费耶诺德",
+    "Porto": "波尔图",
+    "Benfica": "本菲卡",
+    "Sporting": "里斯本竞技",
+    "Sporting CP": "里斯本竞技",
+    "Celtic": "凯尔特人",
+    "Rangers": "流浪者",
+    "Galatasaray": "加拉塔萨雷",
+    "Fenerbahce": "费内巴切",
+    "Fenerbahçe": "费内巴切",
+    "Besiktas": "贝西克塔斯",
+    "Beşiktaş": "贝西克塔斯",
+    "Barcelona": "巴塞罗那",
+    "Real Madrid": "皇家马德里",
+    "Atletico": "马德里竞技",
+    "Atletico Madrid": "马德里竞技",
+    "Atlético Madrid": "马德里竞技",
+    "Sevilla": "塞维利亚",
+    "Villarreal": "比利亚雷亚尔",
+    "Real Betis": "皇家贝蒂斯",
+    "Betis": "皇家贝蒂斯",
     "Manchester United": "曼联",
     "Liverpool": "利物浦",
     "Arsenal": "阿森纳",
@@ -826,6 +879,132 @@ TEAM_CN: dict[str, str] = {
     "Montevideo City Torque": "蒙得维的亚城",
 }
 
+# 第二批：按真实可见赛事补齐（国家队 + 常见俱乐部），未收录的回退英文名
+TEAM_CN.update({
+    # 国家队
+    "Andorra": "安道尔", "Anguilla": "安圭拉", "Botswana": "博茨瓦纳",
+    "Cook Islands": "库克群岛", "Dominica": "多米尼克", "Faroe Islands": "法罗群岛",
+    "Gibraltar": "直布罗陀", "Hungary": "匈牙利", "Kyrgyz Republic": "吉尔吉斯斯坦",
+    "Latvia": "拉脱维亚", "Lebanon": "黎巴嫩", "Liechtenstein": "列支敦士登",
+    "Lithuania": "立陶宛", "Maldives": "马尔代夫", "Moldova": "摩尔多瓦",
+    "Papua New Guinea": "巴布亚新几内亚", "Romania": "罗马尼亚",
+    "Sao Tome and Principe": "圣多美和普林西比", "Slovakia": "斯洛伐克",
+    "Solomon Islands": "所罗门群岛", "Syria": "叙利亚",
+    # 欧洲俱乐部
+    "1. FC Union Berlin": "柏林联合", "AC Horsens": "霍森斯", "ADO Den Haag": "海牙",
+    "AIK": "AIK索尔纳", "Aalesund": "奥勒松", "Académico de Viseu": "维塞乌学院",
+    "Akhmat Grozny": "格罗兹尼", "Alavés": "阿拉维斯", "Alverca": "阿尔韦卡",
+    "Amed SFK": "阿美德", "Antwerp": "安特卫普", "Aris": "阿里斯", "Arouca": "阿鲁卡",
+    "Athletico-PR": "巴拉纳竞技", "Austria Lustenau": "卢斯特瑙",
+    "BK Häcken": "赫根", "Bodo/Glimt": "博德闪耀",
+    "Borussia Mönchengladbach": "门兴格拉德巴赫", "Brøndby IF": "布隆德比",
+    "C.D. Nacional": "马德拉国民", "CF Montréal": "蒙特利尔",
+    "Caykur Rizespor": "里泽体育", "Cercle Brugge KSV": "布鲁日圆环",
+    "Cerro": "塞罗", "Cerro Largo": "塞罗拉尔戈", "Chapecoense": "沙佩科恩斯",
+    "Chippa United": "奇帕联", "Colo Colo": "科洛科洛", "Coritiba": "库里蒂巴",
+    "Coventry City": "考文垂", "Cruz Azul": "蓝十字", "Cusco FC": "库斯科",
+    "Cúcuta Deportivo": "库库塔", "D.C. United": "华盛顿特区联",
+    "Daejeon Hana Citizen": "大田市民", "Danubio": "达努比奥",
+    "Degerfors IF": "代格福什", "Deportes Concepcion": "康塞普西翁",
+    "Deportes Limache": "利马切", "Deportivo Cali": "卡利竞技",
+    "Deportivo Garcilaso": "加西拉索", "Deportivo Pasto": "帕斯托",
+    "Deportivo Pereira": "佩雷拉", "Deportivo Riestra": "列斯特拉",
+    "Dinamo Moscow": "莫斯科迪纳摩", "Djurgården": "尤尔加登",
+    "Dunfermline Athletic": "邓弗姆林", "Dynamo Makhachkala": "马哈奇卡拉",
+    "Elche": "埃尔切", "Erzurum BB": "埃尔祖鲁姆", "Estrela": "埃斯特雷拉",
+    "Estudiantes de Río Cuarto": "里奥夸尔托学生队", "Excelsior": "鹿特丹精英",
+    "Eyupspor": "埃于普体育", "FC Baltika Kaliningrad": "加里宁格勒波罗的海",
+    "FC Dallas": "达拉斯", "FC Famalicao": "法马利康", "FC Groningen": "格罗宁根",
+    "FC Juárez": "华雷斯", "Fagiano Okayama": "冈山绿雉", "Fakel Voronezh": "沃罗涅日",
+    "Fortaleza CEIF": "福塔雷萨", "Fortuna Sittard": "锡塔德幸运",
+    "Fredrikstad": "腓特烈斯塔", "GAIS": "哥德堡", "Gazovik Orenburg": "奥伦堡",
+    "Genclerbirligi": "根克勒比利吉", "Go Ahead Eagles": "前进之鹰",
+    "Golden Arrows": "金箭", "Gor Mahia": "戈马希亚", "Goztepe": "哥兹塔比",
+    "Halmstads BK": "哈尔姆斯塔德", "Hamarkameratene": "哈马尔",
+    "Hamburg SV": "汉堡", "Hammarby IF": "哈马比", "Horoya": "霍罗亚",
+    "Houston Dynamo FC": "休斯顿迪纳摩", "Hull City": "赫尔城",
+    "Huracán": "飓风", "IF Brommapojkarna": "布洛马波卡纳",
+    "IF Elfsborg": "埃尔夫斯堡", "IK Sirius": "天狼星", "IK Start": "斯达",
+    "Iraklis": "伊拉克利斯", "Istanbul Basaksehir": "伊斯坦布尔",
+    "JEF United Ichihara-Chiba": "千叶市原", "JS Saoura": "绍乌拉",
+    "Jeonbuk Motors": "全北现代", "Juventud": "青年", "KFUM Oslo": "奥斯陆KFUM",
+    "KV Kortrijk": "科特赖克", "KV Mechelen": "梅赫伦", "KVC Westerlo": "韦斯特洛",
+    "Kalamata": "卡拉马塔", "Kalmar FF": "卡尔马", "Kawasaki Frontale": "川崎前锋",
+    "Kifisia": "基菲夏", "Kocaelispor": "科贾埃利体育", "Krasnodar": "克拉斯诺达尔",
+    "Kristiansund BK": "克里斯蒂安松", "Kruger United": "克鲁格联",
+    "Kyoto Sanga": "京都桑加", "LASK Linz": "林茨", "La Serena": "拉塞雷纳",
+    "Le Havre AC": "勒阿弗尔", "Le Mans": "勒芒", "Levadiakos": "莱瓦迪亚科斯",
+    "Levante": "莱万特", "Llaneros FC": "亚诺斯", "Lokomotiv Moscow": "莫斯科火车头",
+    "Lorient": "洛里昂", "Lyngby Boldklub": "灵比", "Machida Zelvia": "町田泽维亚",
+    "Mainz": "美因茨", "Maritimo": "马里迪莫", "Marumo Gallants": "马鲁莫",
+    "Mighty Wanderers": "强大流浪者", "Milford FC": "米尔福德",
+    "Millonarios": "百万富翁", "Minnesota United FC": "明尼苏达联",
+    "Mirassol": "米拉索尔", "Mito Hollyhock": "水户蜀葵", "Molde": "莫尔德",
+    "Nashville SC": "纳什维尔", "Necaxa": "内卡萨",
+    "New England Revolution": "新英格兰革命", "Newcastle Jets": "纽卡斯尔喷气机",
+    "O'Higgins": "奥希金斯", "OH Leuven": "鲁汶", "Orlando City SC": "奥兰多城",
+    "PAOK": "塞萨洛尼基", "PEC Zwolle": "兹沃勒", "Pachuca": "帕丘卡",
+    "Panetolikos": "帕纳托利科斯", "Paris FC": "巴黎FC", "Peñarol": "佩纳罗尔",
+    "Philadelphia Union": "费城联合", "Platense": "普拉滕斯",
+    "Pohang Steelers": "浦项制铁", "Polokwane City FC": "波罗克瓦尼城",
+    "Port FC": "港口", "Pumas UNAM": "美洲狮", "Pyramids FC": "金字塔",
+    "Querétaro": "克雷塔罗", "RAAL La Louvière": "拉卢维耶尔",
+    "Racing (Montevideo)": "蒙得维的亚竞赛", "Racing Genk": "亨克",
+    "Racing Santander": "桑坦德竞技", "Randers FC": "兰纳斯",
+    "Rapid Vienna": "维也纳快速", "Ratchaburi FC": "叻武里",
+    "Real Salt Lake": "皇家盐湖城", "Red Bull New York": "纽约红牛",
+    "Remo": "雷莫", "Rio Ave": "里奥阿维", "Rivers United FC": "河流联",
+    "Rodina Moscow": "罗迪纳", "Rosario Central": "罗萨里奥中央",
+    "Rosenborg": "罗森博格", "Royal Charleroi SC": "沙勒罗瓦",
+    "Rubin Kazan": "喀山红宝石", "SC Cambuur": "坎布尔",
+    "SC Rheindorf Altach": "阿尔塔奇", "San Diego FC": "圣迭戈",
+    "San Jose Earthquakes": "圣何塞地震", "San Pédro": "圣佩德罗",
+    "Sandefjord": "桑德尔福德", "Santa Clara": "圣克拉拉",
+    "Sarmiento (Junín)": "萨米恩托", "Sarpsborg FK": "萨尔普斯堡",
+    "Seattle Sounders FC": "西雅图海湾人", "Sekhukhune United FC": "塞库胡尼联",
+    "Shabab Al-Ahli": "迪拜青年国民", "Shimizu S-Pulse": "清水鼓动",
+    "Sidama Coffee": "西达马咖啡", "Silkeborg IF": "锡尔克堡",
+    "Simba SC": "辛巴", "Siwelele": "西韦莱莱", "Sparta Rotterdam": "鹿特丹斯巴达",
+    "Sport Boys": "体育男孩", "Sporting Cristal": "水晶竞技",
+    "Sporting Kansas City": "堪萨斯城体育", "St Johnstone": "圣约翰斯通",
+    "St. Louis CITY SC": "圣路易斯城", "Stade Malien": "马里治安",
+    "Standard Liege": "标准列日", "Stenhousemuir": "斯坦豪斯米尔",
+    "Sønderjyske Fodbold": "南日德兰", "TSV Hartberg": "哈特贝格",
+    "Telstar": "特尔斯达", "Teungueth": "通盖特", "Tigre": "老虎",
+    "Tijuana": "蒂华纳", "Tokyo Verdy 1969": "东京绿茵", "Toronto FC": "多伦多",
+    "Tromso": "特罗姆瑟", "Troyes": "特鲁瓦", "Universitario": "大学队",
+    "Unión (Santa Fe)": "圣菲联", "Unión La Calera": "拉卡莱拉联",
+    "V-Varen Nagasaki": "长崎航海", "Venezia": "威尼斯", "Viborg FF": "维堡",
+    "Vipers SC": "毒蛇", "Vitória": "维多利亚",
+    "Vitória de Guimaraes": "吉马良斯维多利亚", "Volos NFC": "沃洛斯",
+    "Vålerenga": "瓦勒伦加", "Willem II": "威廉二世", "Wolfsberger": "沃尔夫斯贝格",
+    "Wuhan Three Towns": "武汉三镇", "Zenit St Petersburg": "圣彼得堡泽尼特",
+    "Zulte-Waregem": "聚尔特瓦勒海姆", "Çorum FK": "乔鲁姆", "Örgryte IS": "奥尔格里特",
+    "Al Ittihad": "吉达联合", "Alianza Atlético": "阿利安萨竞技",
+    "Alianza FC": "阿利安萨", "Alianza Lima": "利马联盟",
+    "Argentinos Juniors": "阿根廷青年人", "Asswehly SC": "阿斯韦赫利",
+    "ASC Kara": "卡拉ASC", "ASEC Mimosas": "含羞草", "Aiglons FC": "艾格隆",
+    "Atlanta United FC": "亚特兰大联", "Atlante": "亚特兰特", "Atlas": "阿特拉斯",
+    "Atlético Bucaramanga": "布卡拉曼加竞技", "Atlético Grau": "格劳竞技",
+    "Atlético Junior": "青年竞技", "Atlético Nacional": "国民竞技",
+    "Atlético de San Luis": "圣路易斯竞技", "Audax Italiano": "意大利人",
+    "Austin FC": "奥斯汀", "Bahia": "巴伊亚", "Banfield": "班菲尔德",
+    "Belgrano (Córdoba)": "贝尔格拉诺", "Boston River": "波士顿河",
+    "Canchungo": "坎琼戈", "Central Córdoba (Santiago del Estero)": "中央科尔多瓦",
+    "Colorado Rapids": "科罗拉多急流", "Comerciantes Unidos": "商人联",
+    "Cong An Hanoi": "河内公安", "Coquimbo Unido": "科金博联合",
+    "Colombe Sportiv Du Dja Et Lobo": "科隆贝体育",
+    "Deportivo Moquegua": "莫克瓜", "FC Cajamarca": "卡哈马卡",
+    "FC Nouadhibou": "努瓦迪布", "Fortaleza": "福塔雷萨",
+    "Gimnasia (Mendoza)": "门多萨体操", "Gimnasia La Plata": "拉普拉塔体操",
+    "Independiente Medellín": "麦德林独立", "Independiente Santa Fe": "圣菲独立",
+    "Instituto (Córdoba)": "科尔多瓦学院", "Inter Miami CF": "迈阿密国际",
+    "Internacional de Bogotá": "波哥大国际", "Juan Pablo II": "胡安巴勃罗二世",
+    "KVZ": "KVZ", "Llaneros": "亚诺斯", "Sporting Cristal": "水晶竞技",
+    "Talleres (Córdoba)": "科尔多瓦塔列雷斯", "UTC": "卡哈马卡技术大学",
+    "Charlotte FC": "夏洛特", "ADT": "塔尔马",
+})
+
 STATUS_MAP = {
     "STATUS_SCHEDULED": ("scheduled", None),
     "STATUS_FINAL": ("finished", 90),
@@ -961,10 +1140,15 @@ def fetch_summary(slug: str, event_id: str) -> dict[str, Any]:
         athletes = e.get("athletesInvolved") or []
         player = athletes[0].get("displayName") if athletes else None
         related = athletes[1].get("displayName") if len(athletes) > 1 else None
-        if player is None and e.get("text"):
-            # 文本兜底："Goal! ... Alexander Isak (Liverpool) ..."
-            m = re.search(r"\.\s*([A-Z][\w\'\-\. ]+)\s*\(", e["text"])
-            player = m.group(1).strip() if m else None
+        if kind == "substitution" and related is None and e.get("text"):
+            # 换人：athletesInvolved 常常是空的，从文本里解析「A replaces B」
+            pr = parse_event_text(e["text"])
+            player = player or pr.get("player")
+            related = pr.get("related")
+        elif player is None and e.get("text"):
+            # 文本兜底：黄牌/红牌等事件 ESPN 不给 athletesInvolved
+            pr = parse_event_text(e["text"])
+            player = pr.get("player")
         events.append({
             "minute": minute, "type": kind, "team_id": team_id,
             "player": player, "related": related, "detail": e.get("text"),
@@ -1634,11 +1818,194 @@ def _cn_key(s: str) -> str:
 
 
 _PLAYER_CN_NORM: dict[str, str] = {_cn_key(k): v for k, v in PLAYER_CN.items()}
+_TEAM_CN_NORM: dict[str, str] = {_cn_key(k): v for k, v in TEAM_CN.items()}
 
 
 def player_cn(name: str) -> str:
     """英文名 -> 中文名（无译名时原样返回）。"""
     return _PLAYER_CN_NORM.get(_cn_key(name), name)
+
+
+def team_cn(name: str) -> str:
+    """球队英文名 -> 中文名（无译名时原样返回）。"""
+    return _TEAM_CN_NORM.get(_cn_key(name), name)
+
+
+# ---------------- ESPN 事件文本 -> 中文 ----------------
+# ESPN 的 keyEvents[].text 是英文长句，直接显示在时间线上既看不懂也撑破排版。
+# 这里按句式解析成结构化字段，再拼成中文短句。
+_GOAL_RE = re.compile(
+    r"^\s*Goal!\s*(?P<h>.+?)\s+(?P<hs>\d+)\s*,\s*(?P<a>.+?)\s+(?P<as>\d+)\.\s*(?P<rest>.*)$",
+    re.I)
+_OWN_RE = re.compile(
+    r"^\s*Own Goal by\s+(?P<p>[^,]+?),\s*(?P<t>.+?)\.\s*(?P<rest>.*)$", re.I)
+_CARD_RE = re.compile(
+    r"^\s*(?P<p>[^()]+?)\s*\((?P<t>[^)]+)\)\s+is shown the\s+(?P<c>yellow|red)\s+card"
+    r"(?P<rest>.*)$", re.I)
+_SUB_RE = re.compile(
+    r"^\s*Substitution[,\s]+(?P<t>[^.]+?)\.\s*(?P<inn>[^.]+?)\s+replaces\s+(?P<out>[^.]+?)\.?\s*$",
+    re.I)
+_PEN_MISS_RE = re.compile(
+    r"^\s*Penalty (?:missed|saved)[!.]?\s*(?P<rest>.*)$", re.I)
+# "Assisted by Kristjan Asllani with a cross following a corner." -> 只取人名，
+# 后面的 "with a cross..." 是描述性英文，不能混进中文译文
+_ASSIST_RE = re.compile(
+    r"Assisted by\s+(?P<p>[^.]+?)(?:\s+with\s+.*)?\.?\s*$", re.I)
+# 低级别赛事的简写格式："Jai Rowe (Raith Rovers) Goal at 16'"
+_SHORT_RE = re.compile(
+    r"^\s*(?P<p>[^()]+?)\s*\((?P<t>[^)]+)\)\s+"
+    r"(?P<w>Goal|Own Goal|Yellow Card|Red Card|Second Yellow|Substitution|Penalty)"
+    r"(?:\s+at\s+\d+')?\s*\.?\s*$", re.I)
+
+# 射门方式 / 位置（顺序：specific -> general）
+_SHOT_HOW: list[tuple[str, str]] = [
+    (r"converts? the penalty", "点球命中"),
+    (r"header", "头球破门"),
+    (r"left footed shot", "左脚射门"),
+    (r"right footed shot", "右脚射门"),
+    (r"from a direct free kick", "任意球直接破门"),
+    (r"own goal", "乌龙球"),
+]
+_SHOT_LOC: list[tuple[str, str]] = [
+    (r"very close range", "近距离"),
+    (r"left side of the six yard box", "小禁区左侧"),
+    (r"right side of the six yard box", "小禁区右侧"),
+    (r"six yard box", "小禁区"),
+    (r"centre of the box", "禁区中路"),
+    (r"left side of the box", "禁区左侧"),
+    (r"right side of the box", "禁区右侧"),
+    (r"outside the box", "禁区外"),
+    (r"the box", "禁区内"),
+    (r"more than 35 yards", "35 码外远射"),
+    (r"a difficult angle", "小角度"),
+]
+_CARD_REASON: list[tuple[str, str]] = [
+    (r"excessive celebration", "过度庆祝"),
+    (r"a bad foul", "严重犯规"),
+    (r"a foul", "犯规"),
+    (r"hand ball|handball", "手球"),
+    (r"dangerous play", "危险动作"),
+    (r"time wasting", "拖延时间"),
+    (r"argument|dissent", "异议"),
+]
+
+
+def _match_map(text: str, table: list[tuple[str, str]]) -> str | None:
+    for pat, cn in table:
+        if re.search(pat, text, re.I):
+            return cn
+    return None
+
+
+def parse_event_text(text: str | None) -> dict[str, str | None]:
+    """从 ESPN 英文事件文本里解析球员/球队，用于补全 player/related 与翻译。"""
+    out: dict[str, str | None] = {"player": None, "related": None, "team": None}
+    if not text:
+        return out
+    m = _SUB_RE.match(text)
+    if m:
+        out["player"] = m.group("inn").strip()
+        out["related"] = m.group("out").strip()
+        out["team"] = m.group("t").strip()
+        return out
+    m = _CARD_RE.match(text)
+    if m:
+        out["player"] = m.group("p").strip()
+        out["team"] = m.group("t").strip()
+        return out
+    m = _OWN_RE.match(text)
+    if m:
+        out["player"] = m.group("p").strip()
+        out["team"] = m.group("t").strip()
+        return out
+    m = _GOAL_RE.match(text)
+    if m:
+        rest = m.group("rest")
+        pm = re.match(r"\s*(?P<p>[^()]+?)\s*\((?P<t>[^)]+)\)", rest)
+        if pm:
+            out["player"] = pm.group("p").strip()
+            out["team"] = pm.group("t").strip()
+        am = _ASSIST_RE.search(rest)
+        if am:
+            out["related"] = am.group("p").strip()
+        return out
+    m = _PEN_MISS_RE.match(text)
+    if m:
+        pm = re.match(r"\s*(?P<p>[^()]+?)\s*\((?P<t>[^)]+)\)", m.group("rest"))
+        if pm:
+            out["player"] = pm.group("p").strip()
+            out["team"] = pm.group("t").strip()
+        return out
+    m = _SHORT_RE.match(text)
+    if m:
+        out["player"] = m.group("p").strip()
+        out["team"] = m.group("t").strip()
+    return out
+
+
+def zh_event_detail(text: str | None, kind: str) -> str | None:
+    """把 ESPN 英文事件文本翻译成中文短句；已经是中文/无法识别时原样返回。"""
+    if not text:
+        return None
+    t = text.strip()
+    if re.search(r"[\u4e00-\u9fff]", t):     # 已经是中文（模拟数据/已翻译）
+        return t
+
+    def p_cn(n: str | None) -> str:
+        return player_cn(n.strip()) if n else ""
+
+    def t_cn(n: str | None) -> str:
+        return team_cn(n.strip()) if n else ""
+
+    m = _GOAL_RE.match(t)
+    if m:
+        score = f"{t_cn(m.group('h'))} {m.group('hs')}-{m.group('as')} {t_cn(m.group('a'))}"
+        rest = m.group("rest")
+        how = _match_map(rest, _SHOT_HOW) or "破门"
+        loc = _match_map(rest, _SHOT_LOC)
+        pm = re.match(r"\s*(?P<p>[^()]+?)\s*\((?P<t>[^)]+)\)", rest)
+        who = ""
+        if pm:
+            who = f"{p_cn(pm.group('p'))}（{t_cn(pm.group('t'))}）"
+        where = loc or ""
+        am = _ASSIST_RE.search(rest)
+        assist = f"，助攻：{p_cn(am.group('p'))}" if am else ""
+        return f"进球！{score}。{who}{where}{how}{assist}。".replace("。。", "。")
+
+    m = _OWN_RE.match(t)
+    if m:
+        return f"乌龙球！{p_cn(m.group('p'))}（{t_cn(m.group('t'))}）自摆乌龙。"
+
+    m = _CARD_RE.match(t)
+    if m:
+        card = "红牌" if m.group("c").lower() == "red" else "黄牌"
+        reason = _match_map(m.group("rest"), _CARD_REASON)
+        why = f"因{reason}" if reason else ""
+        return f"{p_cn(m.group('p'))}（{t_cn(m.group('t'))}）{why}被出示{card}。"
+
+    m = _SUB_RE.match(t)
+    if m:
+        return (f"换人（{t_cn(m.group('t'))}）：{p_cn(m.group('inn'))} 上场，"
+                f"换下 {p_cn(m.group('out'))}。")
+
+    m = _PEN_MISS_RE.match(t)
+    if m:
+        pm = re.match(r"\s*(?P<p>[^()]+?)\s*\((?P<t>[^)]+)\)", m.group("rest"))
+        who = f"{p_cn(pm.group('p'))}（{t_cn(pm.group('t'))}）" if pm else ""
+        return f"点球未进。{who}主罚被扑出/罚失。"
+
+    # 低级别赛事：ESPN 只给 "Player (Team) Goal at 16'" 这种简写
+    m = _SHORT_RE.match(t)
+    if m:
+        what = {
+            "goal": "进球", "own goal": "乌龙球", "yellow card": "被出示黄牌",
+            "red card": "被出示红牌", "second yellow": "两黄变一红",
+            "substitution": "换人", "penalty": "点球",
+        }.get(m.group("w").lower(), m.group("w"))
+        return f"{p_cn(m.group('p'))}（{t_cn(m.group('t'))}）{what}。"
+
+    # 未识别：至少把队名/人名换成中文，别整句英文糊在界面上
+    return t
 
 
 def _find_or_create_player(db: Session, name: str | None, team) -> int | None:

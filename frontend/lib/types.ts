@@ -92,6 +92,7 @@ export interface EventOut {
   related_player_id: number | null;
   related_player: string | null;
   detail: string | null;
+  detail_cn?: string | null;
 }
 
 export interface PredictionOut {

@@ -62,7 +62,7 @@ function TeamPageInner() {
   ];
 
   return (
-    <div>
+    <div className="page-in">
       <div className="mb-3 flex gap-4 text-xs font-semibold text-sub">
         <Link href="/teams" className="hover:text-txt">← 返回球队列表</Link>
         <Link href="/" className="hover:text-txt">← 返回 Dashboard</Link>

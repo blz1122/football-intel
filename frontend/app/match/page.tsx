@@ -10,13 +10,18 @@ import type { CurvePoint, EventOut, ShotMap } from "@/lib/types";
 import { useLiveSocket } from "@/lib/useLiveSocket";
 import { usePolling } from "@/lib/usePolling";
 
-function StatRow({ label, h, a }: { label: string; h: number | string; a: number | string }) {
+function StatRow({ label, h, a, lowerBetter = false }: {
+  label: string; h: number | string; a: number | string; lowerBetter?: boolean;
+}) {
   const hv = typeof h === "number" ? h : parseFloat(String(h)) || 0;
   const av = typeof a === "number" ? a : parseFloat(String(a)) || 0;
   const total = hv + av || 1;
+  // 占优一方高亮：多数指标越高越好，犯规/红黄牌相反
+  const lead = hv === av ? 0 : (hv > av ? 1 : 2);
+  const better = lowerBetter ? (lead === 1 ? 2 : lead === 2 ? 1 : 0) : lead;
   return (
     <div className="mb-3 grid grid-cols-[52px_1fr_84px_1fr_52px] items-center gap-2.5 text-xs tabular-nums">
-      <span className="text-sub">{h}</span>
+      <span className={`text-right ${better === 1 ? "font-extrabold text-txt" : "text-sub"}`}>{h}</span>
       <span className="relative h-1.5 overflow-hidden rounded bg-base2">
         <i className="absolute inset-y-0 right-0 bg-home" style={{ width: `${(hv / total) * 100}%` }} />
       </span>
@@ -24,54 +29,74 @@ function StatRow({ label, h, a }: { label: string; h: number | string; a: number
       <span className="relative h-1.5 overflow-hidden rounded bg-base2">
         <i className="absolute inset-y-0 left-0 bg-away" style={{ width: `${(av / total) * 100}%` }} />
       </span>
-      <span className="text-right text-sub">{a}</span>
+      <span className={better === 2 ? "font-extrabold text-txt" : "text-sub"}>{a}</span>
     </div>
   );
 }
 
-const EVENT_ICON: Record<string, string> = {
-  goal: "⚽", yellow_card: "🟨", red_card: "🟥", substitution: "🔁",
+const EVENT_CN: Record<string, string> = {
+  goal: "进球", yellow_card: "黄牌", red_card: "红牌", substitution: "换人",
+};
+const EVENT_STYLE: Record<string, { icon: string; chip: string }> = {
+  goal: { icon: "⚽", chip: "bg-[#1d3a2a] text-[#4ade80] border-[#2c5a40]" },
+  yellow_card: { icon: "🟨", chip: "bg-[#2a2a1d] text-[#eab308] border-[#4d4a20]" },
+  red_card: { icon: "🟥", chip: "bg-[#3a1d24] text-[#f87171] border-[#5a2c36]" },
+  substitution: { icon: "🔁", chip: "bg-[#16264d] text-[#9db9ff] border-[#28437f]" },
 };
 
-function Timeline({ events, homeColor, awayColor }: { events: EventOut[]; homeColor: string; awayColor: string }) {
-  if (!events.length) return <div className="py-8 text-center text-sm text-sub">暂无事件</div>;
+function Timeline({ events, homeName, awayName }: {
+  events: EventOut[]; homeName: string; awayName: string;
+}) {
+  if (!events.length) {
+    return (
+      <div className="px-4 py-10 text-center text-sm text-sub">
+        暂无事件（ESPN 未返回该场的事件明细）
+      </div>
+    );
+  }
   return (
-    <div className="relative px-4 py-3">
-      <div className="absolute inset-y-3 left-1/2 w-px bg-line" />
-      {events.map((e, i) => (
-        <div key={i} className={`flex items-center ${e.side === "home" ? "flex-row" : "flex-row-reverse"} mb-2.5`}>
-          <div className={`flex w-1/2 items-center gap-2 ${e.side === "home" ? "justify-end pr-4" : "justify-start pl-4"}`}>
-            {e.side === "away" && <span>{EVENT_ICON[e.type] ?? "•"}</span>}
-            <div className={`text-right ${e.side === "away" ? "text-left" : ""}`}>
-              <div className="text-xs font-bold">
+    <div className="max-h-[520px] overflow-y-auto px-4 py-3">
+      {events.map((e, i) => {
+        const st = EVENT_STYLE[e.type] ?? { icon: "•", chip: "bg-panel2 text-sub border-line" };
+        const desc = e.detail_cn || e.detail || EVENT_CN[e.type] || e.type;
+        const isHome = e.side === "home";
+        return (
+          <div key={i} className={`flex items-start gap-2.5 py-2 ${i ? "border-t border-line/60" : ""}`}>
+            <span className="mt-0.5 w-9 shrink-0 rounded-full border border-line bg-panel2 text-center text-[10px] font-extrabold tabular-nums text-sub">
+              {e.minute}'
+            </span>
+            <span className="mt-0.5 shrink-0 text-[13px]">{st.icon}</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className={`rounded border px-1.5 py-px text-[10px] font-bold ${st.chip}`}>
+                  {EVENT_CN[e.type] ?? e.type}
+                </span>
                 {e.player && (
                   e.player_id ? (
-                    <Link href={`/player/?id=${e.player_id}`} className="hover:text-accent2">{e.player}</Link>
-                  ) : e.player
+                    <Link href={`/player/?id=${e.player_id}`} className="truncate text-xs font-bold hover:text-accent2">
+                      {e.player}
+                    </Link>
+                  ) : <span className="truncate text-xs font-bold">{e.player}</span>
                 )}
                 {e.related_player && (
-                  <>
-                    {" (换下 "}
+                  <span className="text-[10.5px] text-sub">
+                    （{e.type === "goal" ? "助攻" : "换下"}{" "}
                     {e.related_player_id ? (
-                      <Link href={`/player/?id=${e.related_player_id}`} className="hover:text-accent2">{e.related_player}</Link>
-                    ) : e.related_player}
-                    {")"}
-                  </>
+                      <Link href={`/player/?id=${e.related_player_id}`} className="hover:text-accent2">
+                        {e.related_player}
+                      </Link>
+                    ) : e.related_player}）
+                  </span>
                 )}
+                <span className="ml-auto shrink-0 text-[10px] text-sub">
+                  {isHome ? homeName : awayName}
+                </span>
               </div>
-              <div className="text-[10.5px] text-sub">{e.detail ?? e.type}</div>
+              <div className="mt-0.5 text-[11px] leading-snug text-sub">{desc}</div>
             </div>
-            {e.side === "home" && <span>{EVENT_ICON[e.type] ?? "•"}</span>}
           </div>
-          <span
-            className="relative z-10 min-w-9 rounded-full border-2 px-1.5 py-0.5 text-center text-[10px] font-extrabold tabular-nums"
-            style={{ borderColor: e.side === "home" ? homeColor : awayColor, background: "#0f1523" }}
-          >
-            {e.minute}'
-          </span>
-          <div className="w-1/2" />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -145,7 +170,7 @@ function MatchPageInner() {
   const { data: curve } = usePolling(() => api.winProbCurve(id), 15000);
   const { data: shots } = usePolling(() => api.shotMap(id), 20000);
   const { data: mc } = usePolling(() => api.monteCarlo(id), 60000);
-  const { data: report } = usePolling(() => api.report(id), 20000);
+  const { data: report, error: reportErr } = usePolling(() => api.report(id), 20000);
   const { updates, connected } = useLiveSocket(false, id);
 
   // WebSocket 快照合并：分钟/比分/概率实时覆盖
@@ -209,9 +234,15 @@ function MatchPageInner() {
 
   const { events, prediction } = data;
   const live = m && (m.status === "live" || m.status === "halftime");
+  // 净胜 2 球以上（任一方）的概率，直接从比分矩阵累加
+  const margin2 = mc
+    ? Object.entries(mc.score_matrix).reduce(
+        (acc, [k, v]) => acc + (Math.abs(Number(k.split("-")[0]) - Number(k.split("-")[1])) >= 2 ? v : 0), 0)
+    : 0;
+  const kickoff = new Date(m.kickoff_at);
 
   return (
-    <div>
+    <div className="page-in">
       <Link href="/" className="mb-3 inline-block text-xs font-semibold text-sub hover:text-txt">← 返回 Dashboard</Link>
 
       {/* 比分头 */}
@@ -225,7 +256,9 @@ function MatchPageInner() {
           <div className="text-[11.5px] text-sub">Elo {Math.round(m.home_team.elo_rating)} · TPI {m.home_team.tpi ?? "—"} · 主场</div>
         </Link>
         <div className="text-center">
-          <div className="mb-1.5 text-xs text-sub">{m.league.name} · {m.round}</div>
+          <div className="mb-1.5 text-xs text-sub">
+            {m.league.name} · {m.round} · {kickoff.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+          </div>
           <div className="text-4xl font-black tabular-nums tracking-widest">
             {m.status === "scheduled" ? "vs" : `${m.home_score} - ${m.away_score}`}
           </div>
@@ -271,8 +304,8 @@ function MatchPageInner() {
                   <StatRow label="xG" h={s.xg_home.toFixed(2)} a={s.xg_away.toFixed(2)} />
                   <StatRow label="危险进攻" h={s.dangerous_home} a={s.dangerous_away} />
                   <StatRow label="角球" h={s.corners_home} a={s.corners_away} />
-                  <StatRow label="犯规" h={s.fouls_home} a={s.fouls_away} />
-                  <StatRow label="红黄牌" h={`${s.yellow_home}🟨${s.red_home}🟥`} a={`${s.yellow_away}🟨${s.red_away}🟥`} />
+                  <StatRow label="犯规" h={s.fouls_home} a={s.fouls_away} lowerBetter />
+                  <StatRow label="红黄牌" h={`${s.yellow_home}🟨${s.red_home}🟥`} a={`${s.yellow_away}🟨${s.red_away}🟥`} lowerBetter />
                 </>
               ) : (
                 <div className="py-8 text-center text-sm text-sub">比赛开始后展示实时统计</div>
@@ -328,7 +361,7 @@ function MatchPageInner() {
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
                   <div className="rounded-lg bg-panel2 px-2 py-2">大2.5球 <b className="ml-1 text-txt">{Math.round((mc.over_under["2.5"] ?? 0) * 100)}%</b></div>
                   <div className="rounded-lg bg-panel2 px-2 py-2">双方进球 <b className="ml-1 text-txt">{Math.round(mc.btts * 100)}%</b></div>
-                  <div className="rounded-lg bg-panel2 px-2 py-2">净胜2球+ <b className="ml-1 text-txt">—</b></div>
+                  <div className="rounded-lg bg-panel2 px-2 py-2">净胜2球+ <b className="ml-1 text-txt">{Math.round(margin2 * 100)}%</b></div>
                 </div>
               </div>
             </Panel>
@@ -367,8 +400,8 @@ function MatchPageInner() {
           )}
 
           {/* 事件时间线 */}
-          <Panel title="⏱️ 事件时间线">
-            <Timeline events={events} homeColor={m.home_team.color} awayColor={m.away_team.color} />
+          <Panel title="⏱️ 事件时间线" tag={`${events.length} 条`}>
+            <Timeline events={events} homeName={m.home_team.short_name} awayName={m.away_team.short_name} />
           </Panel>
 
           {/* AI 报告：数据驱动模板引擎，可配置 LLM 生成 */}
@@ -379,20 +412,29 @@ function MatchPageInner() {
                 ? report.generated_by === "llm"
                   ? "LLM 生成"
                   : "数据驱动模板引擎"
-                : "生成中…"
+                : reportErr ? "生成失败" : "生成中…"
             }
           >
             {report ? (
-              <div className="space-y-3 px-4 py-4 text-[13px] leading-relaxed text-[#c6d2ec]">
+              <div className="space-y-2.5 px-4 py-4">
                 {report.sections.map((sec, i) => (
-                  <p key={i}>
-                    <b className="text-txt">{sec.icon} {sec.title}：</b>
-                    {sec.body}
-                  </p>
+                  <div key={i} className="rounded-lg bg-panel2 px-3.5 py-3">
+                    <div className="mb-1 text-xs font-extrabold text-txt">
+                      {sec.icon} {sec.title}
+                    </div>
+                    <p className="text-[12.5px] leading-relaxed text-[#c6d2ec]">{sec.body}</p>
+                  </div>
                 ))}
               </div>
             ) : (
-              <div className="px-4 py-8 text-center text-sm text-sub">报告生成中…</div>
+              <div className="px-4 py-8 text-center text-sm text-sub">
+                {reportErr ? (
+                  <>
+                    <div className="text-[#f87171]">报告生成失败：{reportErr}</div>
+                    <div className="mt-1.5 text-xs">该场比赛暂无赛前预测（模型未就绪）时会无法生成</div>
+                  </>
+                ) : "报告生成中…"}
+              </div>
             )}
           </Panel>
         </div>

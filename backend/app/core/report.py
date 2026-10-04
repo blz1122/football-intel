@@ -44,12 +44,17 @@ def build_facts(
     xg_a = stats.xg_away if stats else 0.0
     poss_h = stats.possession_home if stats else 50
 
+    # ESPN 对低级别赛事不提供 boxscore，此时统计全是 0（控球会退化成 0% : 100%）。
+    # 标记为不可用，报告里就不输出这些假数字。
+    has_stats = bool(stats) and (xg_h + xg_a) > 0
+
     return {
         "home": m.home_team.name, "away": m.away_team.name,
         "league": m.league.name,
         "status": state["status"], "minute": state["minute"],
         "score": f"{hs}-{as_}",
         "elo_diff": round(elo_diff),
+        "has_stats": has_stats,
         "xg": [round(xg_h, 2), round(xg_a, 2)],
         "possession": [poss_h, 100 - poss_h],
         "shots": [stats.shots_home if stats else 0, stats.shots_away if stats else 0],
@@ -81,17 +86,17 @@ def _template_report(f: dict[str, Any]) -> list[dict[str, str]]:
             f"模型置信度 {_fmt_pct(f['pred']['confidence'])}。"
         )
     elif f["status"] == "finished":
-        lead = (
-            f"终场比分 {home} {f['score']} {away}。"
+        lead = f"终场比分 {home} {f['score']} {away}。"
+        lead += (
             f"xG 对比 {f['xg'][0]} : {f['xg'][1]}，"
             f"控球 {f['possession'][0]}% : {f['possession'][1]}%。"
-        )
+        ) if f.get("has_stats") else "该场暂无技术统计（数据源未提供 boxscore）。"
     else:
-        lead = (
-            f"比赛进行至第 {f['minute']} 分钟，{home} {f['score']} {away}。"
+        lead = f"比赛进行至第 {f['minute']} 分钟，{home} {f['score']} {away}。"
+        lead += (
             f"当前 xG {f['xg'][0]} : {f['xg'][1]}，"
             f"控球 {f['possession'][0]}% : {f['possession'][1]}%。"
-        )
+        ) if f.get("has_stats") else "该场暂无技术统计（数据源未提供 boxscore）。"
     sections.append({"icon": "📋", "title": "赛况概述", "body": lead})
 
     # 2) 关键点：xG 与比分是否匹配（效率判断）
@@ -119,7 +124,9 @@ def _template_report(f: dict[str, Any]) -> list[dict[str, str]]:
     # 3) 战术分析：控球结构 + 进攻区域代理指标
     poss = f["possession"][0]
     tactics: list[str] = []
-    if poss >= 60:
+    if not f.get("has_stats"):
+        tactics.append("数据源未提供该场技术统计，战术判断仅基于比分与 Elo 实力差。")
+    elif poss >= 60:
         tactics.append(f"{home} 掌握 {poss}% 控球，呈压制型控局打法，对方大概率收缩防反。")
     elif poss <= 40:
         tactics.append(f"{away} 以 {100 - poss}% 控球主导中场，{home} 主动让出球权打转换。")

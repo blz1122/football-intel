@@ -36,7 +36,7 @@ function PlayerPageInner() {
   ];
 
   return (
-    <div>
+    <div className="page-in">
       <div className="mb-3 flex gap-4 text-xs font-semibold text-sub">
         <Link href="/players" className="hover:text-txt">← 返回球员列表</Link>
         <Link href={`/team/?id=${p.team.id}`} className="hover:text-txt">← 返回 {p.team.name}</Link>

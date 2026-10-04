@@ -83,6 +83,8 @@ class EventOut(BaseModel):
     related_player_id: int | None = None
     related_player: str | None
     detail: str | None
+    # ESPN 原始文本是英文，这里给出中文译文（前端优先展示）
+    detail_cn: str | None = None
 
 
 class StatsPoint(LiveStats):
