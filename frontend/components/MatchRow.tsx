@@ -17,7 +17,7 @@ export default function MatchRow({ m }: { m: MatchListItem }) {
 
   const teamLink = (team: MatchListItem["home_team"]) => (
     <Link
-      href={`/team/${team.id}`}
+      href={`/team/?id=${team.id}`}
       onClick={(e) => e.stopPropagation()}
       className="flex min-w-0 items-center gap-2 text-sm font-semibold hover:text-accent2"
       title={`查看 ${team.name} 球队页`}
@@ -29,7 +29,7 @@ export default function MatchRow({ m }: { m: MatchListItem }) {
 
   return (
     <div
-      onClick={() => router.push(`/match/${m.id}`)}
+      onClick={() => router.push(`/match/?id=${m.id}`)}
       className="grid cursor-pointer grid-cols-[130px_1fr_auto] items-center gap-3 border-b border-line px-4 py-3 transition-colors last:border-b-0 hover:bg-panel2 md:grid-cols-[150px_1fr_200px_130px]"
       title="查看比赛详情"
     >

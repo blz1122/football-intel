@@ -22,6 +22,7 @@ out/
 # 桌面打包产物（PyInstaller）
 backend/static/
 backend/static-old*/
+backend/static_old*/
 backend/build/
 backend/dist/
 backend/*.spec

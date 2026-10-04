@@ -35,6 +35,8 @@ class Settings:
     MATCH_WINDOW_DAYS: int = int(os.getenv("MATCH_WINDOW_DAYS", "14"))
     # 单轮同步拉取比赛详情（summary）的数量上限
     ESPN_DETAIL_BUDGET: int = int(os.getenv("ESPN_DETAIL_BUDGET", "80"))
+    # 启动/周期同步时拉取完整球队名单的球队数上限
+    ESPN_ROSTER_BUDGET: int = int(os.getenv("ESPN_ROSTER_BUDGET", "180"))
 
     # WebSocket 推送间隔（秒）
     WS_PUSH_INTERVAL: float = float(os.getenv("WS_PUSH_INTERVAL", "5"))

@@ -1,7 +1,8 @@
 "use client";
 // 球队 Profile：TPI 评分 / 能力雷达 / 近10场走势 / 赛季数据 / 阵容 AI 评分表
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import EChart, { CHART_COLORS, baseOption } from "@/components/charts/EChart";
 import { Panel } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -15,9 +16,9 @@ const FORM_COLOR: Record<string, string> = {
   L: "bg-[#3a1d24] text-[#f87171] border-[#5a2c36]",
 };
 
-export default function TeamPage() {
-  const params = useParams<{ id: string }>();
-  const id = Number(params.id);
+function TeamPageInner() {
+  const params = useSearchParams();
+  const id = Number(params.get("id"));
   const { data: t, error } = usePolling(() => api.teamProfile(id), 60000);
 
   if (!t) {
@@ -141,8 +142,9 @@ export default function TeamPage() {
                     <th className="px-4 py-2 font-semibold">球员</th>
                     <th className="px-2 py-2 font-semibold">位置</th>
                     <th className="px-2 py-2 font-semibold">号码</th>
+                    <th className="px-2 py-2 font-semibold">出场</th>
                     <th className="px-2 py-2 font-semibold">进球/助攻</th>
-                    <th className="px-2 py-2 font-semibold">xG+xA</th>
+                    <th className="px-2 py-2 font-semibold">射正</th>
                     <th className="px-2 py-2 text-right font-semibold">AI 评分</th>
                   </tr>
                 </thead>
@@ -150,18 +152,23 @@ export default function TeamPage() {
                   {t.squad.map((p) => (
                     <tr key={p.id} className="border-b border-line last:border-b-0 hover:bg-panel2">
                       <td className="px-4 py-2.5">
-                        <Link href={`/player/${p.id}`} className="font-bold hover:text-accent2">
+                        <Link href={`/player/?id=${p.id}`} className="font-bold hover:text-accent2">
                           {p.name}
                         </Link>
-                        <span className="ml-2 text-[10px] text-sub">{p.name_en}</span>
+                        {p.name_en && p.name_en !== p.name && (
+                          <span className="ml-2 text-[10px] text-sub">{p.name_en}</span>
+                        )}
                       </td>
                       <td className="px-2 py-2.5 text-sub">{POS_CN[p.position]}</td>
-                      <td className="px-2 py-2.5 tabular-nums text-sub">{p.number}</td>
+                      <td className="px-2 py-2.5 tabular-nums text-sub">{p.number || "—"}</td>
+                      <td className="px-2 py-2.5 tabular-nums text-sub">
+                        {p.season_stats.appearances ?? 0}
+                      </td>
                       <td className="px-2 py-2.5 tabular-nums">
                         {p.season_stats.goals ?? 0} / {p.season_stats.assists ?? 0}
                       </td>
                       <td className="px-2 py-2.5 tabular-nums text-sub">
-                        {((p.season_stats.xg ?? 0) + (p.season_stats.xa ?? 0)).toFixed(1)}
+                        {p.season_stats.shots_on_target ?? 0}
                       </td>
                       <td className="px-2 py-2.5 text-right">
                         <span className={`rounded px-2 py-0.5 font-extrabold tabular-nums ${p.ai_rating >= 8 ? "bg-[#1d3a2a] text-[#4ade80]" : p.ai_rating >= 7 ? "bg-[#16264d] text-[#9db9ff]" : "bg-panel2 text-sub"}`}>
@@ -177,5 +184,15 @@ export default function TeamPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TeamPage() {
+  return (
+    <Suspense fallback={
+      <div className="grid min-h-[60vh] place-items-center text-sm text-sub">加载球队详情…</div>
+    }>
+      <TeamPageInner />
+    </Suspense>
   );
 }

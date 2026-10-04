@@ -113,13 +113,15 @@ export default function PlayersPage() {
                         {i + 1}
                       </td>
                       <td className="px-2 py-2.5">
-                        <Link href={`/player/${p.id}`} className="font-bold hover:text-accent2">
+                        <Link href={`/player/?id=${p.id}`} className="font-bold hover:text-accent2">
                           {p.name}
                         </Link>
-                        <span className="ml-2 text-[10px] text-sub">{p.name_en}</span>
+                        {p.name_en && p.name_en !== p.name && (
+                          <span className="ml-2 text-[10px] text-sub">{p.name_en}</span>
+                        )}
                       </td>
                       <td className="px-2 py-2.5">
-                        <Link href={`/team/${p.team_id}`} className="flex items-center gap-1.5 font-semibold hover:text-accent2">
+                        <Link href={`/team/?id=${p.team_id}`} className="flex items-center gap-1.5 font-semibold hover:text-accent2">
                           <span
                             className="flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-extrabold text-white"
                             style={{ background: p.team_color }}

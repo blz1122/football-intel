@@ -1,6 +1,7 @@
 "use client";
 // Dashboard 首页：KPI + 状态分组比赛列表 + 联赛筛选 + AI 预测排行/热门赛事
 // Phase 4: WebSocket 5s 实时推送 + 30s REST 兜底轮询
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import MatchRow from "@/components/MatchRow";
 import DataSource, { useDataSource } from "@/components/DataSource";
@@ -263,16 +264,19 @@ export default function Dashboard() {
             ) : (
               <ul>
                 {top.map((p, i) => (
-                  <li key={p.match_id} className="flex items-center gap-2.5 border-b border-line px-4 py-2.5 text-[13px] last:border-b-0">
-                    <span className={`w-5 text-center font-extrabold ${i < 3 ? "text-gold" : "text-sub"}`}>
-                      {i + 1}
-                    </span>
-                    <span className="flex-1 truncate font-semibold">
-                      {p.title} · {p.pick}
-                    </span>
-                    <span className="font-extrabold tabular-nums text-[#9db9ff]">
-                      {Math.round(p.probability * 100)}%
-                    </span>
+                  <li key={p.match_id} className="border-b border-line last:border-b-0">
+                    <Link href={`/match/?id=${p.match_id}`}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] transition-colors hover:bg-panel2">
+                      <span className={`w-5 text-center font-extrabold ${i < 3 ? "text-gold" : "text-sub"}`}>
+                        {i + 1}
+                      </span>
+                      <span className="flex-1 truncate font-semibold">
+                        {p.title} · {p.pick}
+                      </span>
+                      <span className="font-extrabold tabular-nums text-[#9db9ff]">
+                        {Math.round(p.probability * 100)}%
+                      </span>
+                    </Link>
                   </li>
                 ))}
                 {top.length === 0 && (
@@ -288,14 +292,17 @@ export default function Dashboard() {
                 .filter((m) => m.is_hot)
                 .slice(0, 6)
                 .map((m) => (
-                  <li key={m.id} className="flex items-center gap-2.5 border-b border-line px-4 py-2.5 text-[13px] last:border-b-0">
-                    <span className="w-5 text-center">🔥</span>
-                    <span className="flex-1 truncate font-semibold">
-                      {m.home_team.short_name} vs {m.away_team.short_name}
-                    </span>
-                    <span className="text-sub tabular-nums">
-                      {new Date(m.kickoff_at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
+                  <li key={m.id} className="border-b border-line last:border-b-0">
+                    <Link href={`/match/?id=${m.id}`}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] transition-colors hover:bg-panel2">
+                      <span className="w-5 text-center">🔥</span>
+                      <span className="flex-1 truncate font-semibold">
+                        {m.home_team.short_name} vs {m.away_team.short_name}
+                      </span>
+                      <span className="text-sub tabular-nums">
+                        {new Date(m.kickoff_at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </Link>
                   </li>
                 ))}
               {(matches ?? []).filter((m) => m.is_hot).length === 0 && (

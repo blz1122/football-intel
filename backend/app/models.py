@@ -34,6 +34,8 @@ class League(Base):
     # 赛事分组：五大联赛/洲际赛事/国家队/英格兰/西班牙/... 前端据此分组筛选
     competition_type: Mapped[str] = mapped_column(String(24), default="domestic", index=True)
     is_key: Mapped[bool] = mapped_column(Boolean, default=False)  # 重点赛事
+    # ESPN 源标识（如 eng.1 / uefa.champions）：拉球队名单等详情接口时需要
+    slug: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
 
     teams: Mapped[list["Team"]] = relationship(back_populates="league")
 

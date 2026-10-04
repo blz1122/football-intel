@@ -1,8 +1,8 @@
 "use client";
 // 比赛详情页：比分头 + 实时胜率曲线 + 技术统计 + 事件时间线 + 射门地图 + 赛前预测
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { Fragment, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+import { Fragment, Suspense, useMemo } from "react";
 import EChart, { CHART_COLORS, baseOption } from "@/components/charts/EChart";
 import { Panel, StatusTag, TeamBadge } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -46,14 +46,14 @@ function Timeline({ events, homeColor, awayColor }: { events: EventOut[]; homeCo
               <div className="text-xs font-bold">
                 {e.player && (
                   e.player_id ? (
-                    <Link href={`/player/${e.player_id}`} className="hover:text-accent2">{e.player}</Link>
+                    <Link href={`/player/?id=${e.player_id}`} className="hover:text-accent2">{e.player}</Link>
                   ) : e.player
                 )}
                 {e.related_player && (
                   <>
                     {" (换下 "}
                     {e.related_player_id ? (
-                      <Link href={`/player/${e.related_player_id}`} className="hover:text-accent2">{e.related_player}</Link>
+                      <Link href={`/player/?id=${e.related_player_id}`} className="hover:text-accent2">{e.related_player}</Link>
                     ) : e.related_player}
                     {")"}
                   </>
@@ -130,9 +130,17 @@ function MonteCarloGrid({ matrix }: { matrix: Record<string, number> }) {
   );
 }
 
-export default function MatchPage() {
-  const params = useParams<{ id: string }>();
-  const id = Number(params.id);
+function MatchPageInner() {
+  const params = useSearchParams();
+  const id = Number(params.get("id"));
+  if (!Number.isFinite(id) || id <= 0) {
+    return (
+      <div className="py-24 text-center text-sm text-sub">
+        缺少比赛 ID，请从比赛列表进入。<br />
+        <Link href="/" className="mt-3 inline-block font-semibold text-accent2">← 返回 Dashboard</Link>
+      </div>
+    );
+  }
   const { data } = usePolling(() => api.matchDetail(id), 20000);
   const { data: curve } = usePolling(() => api.winProbCurve(id), 15000);
   const { data: shots } = usePolling(() => api.shotMap(id), 20000);
@@ -209,7 +217,7 @@ export default function MatchPage() {
       {/* 比分头 */}
       <section className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 rounded-xl border border-line px-6 py-6"
         style={{ background: "linear-gradient(180deg,#131d33,#101728)" }}>
-        <Link href={`/team/${m.home_team.id}`} className="group flex flex-col items-center gap-2" title="查看球队详情">
+        <Link href={`/team/?id=${m.home_team.id}`} className="group flex flex-col items-center gap-2" title="查看球队详情">
           <span className="flex h-14 w-14 items-center justify-center rounded-full text-base font-extrabold text-white" style={{ background: m.home_team.color }}>
             {m.home_team.short_name}
           </span>
@@ -223,7 +231,7 @@ export default function MatchPage() {
           </div>
           <div className="mt-2 flex justify-center"><StatusTag status={m.status} period={m.period} /></div>
         </div>
-        <Link href={`/team/${m.away_team.id}`} className="group flex flex-col items-center gap-2" title="查看球队详情">
+        <Link href={`/team/?id=${m.away_team.id}`} className="group flex flex-col items-center gap-2" title="查看球队详情">
           <span className="flex h-14 w-14 items-center justify-center rounded-full text-base font-extrabold text-white" style={{ background: m.away_team.color }}>
             {m.away_team.short_name}
           </span>
@@ -390,5 +398,15 @@ export default function MatchPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MatchPage() {
+  return (
+    <Suspense fallback={
+      <div className="grid min-h-[60vh] place-items-center text-sm text-sub">加载比赛详情…</div>
+    }>
+      <MatchPageInner />
+    </Suspense>
   );
 }

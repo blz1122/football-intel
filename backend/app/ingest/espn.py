@@ -14,6 +14,7 @@ import gzip
 import json
 import os
 import re
+import unicodedata
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -1124,11 +1125,31 @@ def _resolve_league(db: Session, slug: str):
         ))
         db.flush()
     else:
-        lg.country, lg.competition_type, lg.is_key = region, (
+            lg.country, lg.competition_type, lg.is_key = region, (
             "continental" if region == "洲际赛事"
             else "national" if region == "国家队" else "domestic"
         ), is_key
+    # 详情接口（球队名单等）需要 ESPN 源标识
+    if lg.slug != slug:
+        lg.slug = slug
     return lg
+
+
+def backfill_league_slugs(db: Session) -> int:
+    """为历史库补齐 league.slug（按中文名/英文名反查）。"""
+    from app.models import League
+
+    by_cn = {v[0]: k for k, v in LEAGUES.items()}
+    by_en = {v[1]: k for k, v in LEAGUES.items()}
+    n = 0
+    for lg in db.query(League).filter(League.slug.is_(None)).all():
+        s = by_cn.get(lg.name) or by_en.get(lg.name_en)
+        if s:
+            lg.slug = s
+            n += 1
+    if n:
+        db.commit()
+    return n
 
 
 def _upsert_prediction(db: Session, m, home_elo: float, away_elo: float) -> None:
@@ -1431,6 +1452,195 @@ def sync(db: Session, with_details: bool = True, keep_days: int = 21) -> dict[st
     return result
 
 
+# ---------------- 球员中文名 ----------------
+# ESPN 只给英文名。这里收录知名球员的中文译名（未收录的自动回退英文名）。
+# 查找时按「去重音 + 小写」比对，所以 Rúben Dias / Ruben Dias 都能命中。
+PLAYER_CN: dict[str, str] = {
+    # 英超
+    "Erling Haaland": "哈兰德", "Erling Braut Haaland": "哈兰德",
+    "Phil Foden": "福登", "Kevin De Bruyne": "德布劳内", "Rodri": "罗德里",
+    "Bernardo Silva": "B席", "Jack Grealish": "格拉利什", "Rico Lewis": "刘易斯",
+    "Rúben Dias": "鲁本·迪亚斯", "Ruben Dias": "鲁本·迪亚斯",
+    "Josko Gvardiol": "格瓦迪奥尔", "Joško Gvardiol": "格瓦迪奥尔",
+    "Marc Guéhi": "格伊", "Marc Guehi": "格伊",
+    "Rayan Aït-Nouri": "艾特-努里", "Rayan Ait-Nouri": "艾特-努里",
+    "Matheus Nunes": "努内斯", "Mateo Kovacic": "科瓦契奇", "Mateo Kovačić": "科瓦契奇",
+    "Iliman Ndiaye": "恩迪亚耶", "Jérémy Doku": "多库", "Jeremy Doku": "多库",
+    "Rayan Cherki": "谢尔基", "Marcus Bettinelli": "贝蒂内利",
+    "Ayyoub Bouaddi": "布阿迪", "Vitor Reis": "维托尔·雷斯",
+    "Ryan McAidoo": "麦卡杜", "Floyd Samba": "桑巴", "Max-Edgar Chabot": "沙博",
+    "Allan Elias": "阿兰·埃利亚斯", "Kaden Braithwaite": "布雷斯韦特",
+    "Nico O'Reilly": "奥赖利", "Abdukodir Khusanov": "胡萨诺夫",
+    "Gianluigi Donnarumma": "多纳鲁马", "Ederson": "埃德森",
+    "Stefan Ortega": "奥尔特加", "Gerónimo Rulli": "鲁利", "Geronimo Rulli": "鲁利",
+    "Bukayo Saka": "萨卡", "Martin Ødegaard": "厄德高", "Martin Odegaard": "厄德高",
+    "Declan Rice": "赖斯", "William Saliba": "萨利巴", "Gabriel Magalhães": "加布里埃尔",
+    "Gabriel": "加布里埃尔", "Mikel Merino": "梅里诺", "Viktor Gyökeres": "约克雷斯",
+    "Viktor Gyokeres": "约克雷斯", "Kai Havertz": "哈弗茨", "David Raya": "拉亚",
+    "Jurrien Timber": "廷贝尔", "Ben White": "本·怀特", "Eberechi Eze": "埃泽",
+    "Leandro Trossard": "特罗萨德", "Gabriel Martinelli": "马丁内利",
+    "Cole Palmer": "帕尔默", "Enzo Fernández": "恩佐", "Enzo Fernandez": "恩佐",
+    "Moisés Caicedo": "凯塞多", "Moises Caicedo": "凯塞多",
+    "Nicolas Jackson": "杰克逊", "Christopher Nkunku": "恩昆库",
+    "Reece James": "里斯·詹姆斯", "Levi Colwill": "科尔威尔",
+    "Robert Sánchez": "桑切斯", "Robert Sanchez": "桑切斯",
+    "Marc Cucurella": "库库雷利亚", "Pedro Neto": "内托", "Neto": "内托",
+    "Bruno Fernandes": "B费", "Casemiro": "卡塞米罗", "Marcus Rashford": "拉什福德",
+    "Rasmus Højlund": "霍伊伦", "Rasmus Hojlund": "霍伊伦",
+    "Matthijs de Ligt": "德里赫特", "Lisandro Martínez": "利桑德罗·马丁内斯",
+    "Lisandro Martinez": "利桑德罗·马丁内斯", "Diogo Dalot": "达洛特",
+    "Amad Diallo": "阿马德", "Kobbie Mainoo": "梅努",
+    "Alejandro Garnacho": "加纳乔", "Benjamin Šeško": "塞斯科", "Benjamin Sesko": "塞斯科",
+    "Luke Shaw": "卢克·肖", "Manuel Ugarte": "乌加特", "Noussair Mazraoui": "马兹拉维",
+    "Dominik Szoboszlai": "索博斯洛伊", "Alexis Mac Allister": "麦卡利斯特",
+    "Ibrahima Konaté": "科纳特", "Ibrahima Konate": "科纳特",
+    "Ryan Gravenberch": "赫拉芬贝赫", "Luis Díaz": "路易斯·迪亚斯",
+    "Luis Diaz": "路易斯·迪亚斯", "Cody Gakpo": "加克波",
+    "Federico Chiesa": "基耶萨", "Alexander Isak": "伊萨克",
+    "Trent Alexander-Arnold": "阿诺德", "Andrew Robertson": "罗伯逊",
+    "Conor Bradley": "布拉德利", "Alisson": "阿利松", "Virgil van Dijk": "范戴克",
+    "Jarrod Bowen": "鲍恩", "Lucas Paquetá": "帕奎塔", "Lucas Paqueta": "帕奎塔",
+    "Mohammed Kudus": "库杜斯", "Crysencio Summerville": "萨默维尔",
+    "Max Kilman": "基尔曼", "Alphonse Areola": "阿雷奥拉",
+    "Justin Kluivert": "克鲁伊维特", "Antoine Semenyo": "塞门约",
+    "Evanilson": "埃瓦尼尔森", "Milos Kerkez": "科尔克兹", "Dean Huijsen": "胡伊森",
+    "Ilya Zabarnyi": "扎巴尔尼", "Kepa Arrizabalaga": "凯帕",
+    "Matheus Cunha": "库尼亚", "João Gomes": "若奥·戈麦斯", "Joao Gomes": "若奥·戈麦斯",
+    "Jørgen Strand Larsen": "拉森", "Jorgen Strand Larsen": "拉森",
+    "Raul Jiménez": "希门尼斯", "Raul Jimenez": "希门尼斯",
+    "Antonee Robinson": "罗宾逊", "Calvin Bassey": "巴西", "Alex Iwobi": "伊沃比",
+    "Bernd Leno": "莱诺", "Emile Smith Rowe": "史密斯·罗",
+    "Chris Wood": "伍德", "Morgan Gibbs-White": "吉布斯-怀特",
+    "Callum Hudson-Odoi": "奥多伊", "Elliot Anderson": "安德森", "Murillo": "穆里略",
+    "Nikola Milenković": "米伦科维奇", "Matz Sels": "塞尔斯", "Ola Aina": "艾纳",
+    "Danny Welbeck": "维尔贝克", "Kaoru Mitoma": "三笘薰",
+    "João Pedro": "若奥·佩德罗", "Joao Pedro": "若奥·佩德罗",
+    "Georginio Rutter": "吕特", "Bart Verbruggen": "费布鲁亨", "Lewis Dunk": "邓克",
+    "Ferdi Kadıoğlu": "卡迪奥卢", "Yankuba Minteh": "明特", "Carlos Baleba": "巴莱巴",
+    "Bryan Mbeumo": "姆贝莫", "João Palhinha": "帕利尼亚", "Joao Palhinha": "帕利尼亚",
+    "Son Heung-min": "孙兴慜", "Heung-Min Son": "孙兴慜", "Cristian Romero": "罗梅罗",
+    "Micky van de Ven": "范德芬", "James Maddison": "麦迪逊",
+    "Dejan Kulusevski": "库卢塞夫斯基", "Brennan Johnson": "约翰逊",
+    "Yves Bissouma": "比苏马", "Rodrigo Bentancur": "本坦库尔",
+    "Guglielmo Vicario": "维卡里奥", "Pedro Porro": "波罗", "Destiny Udogie": "乌多吉",
+    "Richarlison": "理查利森", "Dominic Solanke": "索兰克",
+    "Bruno Guimarães": "布鲁诺·吉马良斯", "Bruno Guimaraes": "布鲁诺·吉马良斯",
+    "Sandro Tonali": "托纳利", "Joelinton": "若埃林顿", "Anthony Gordon": "戈登",
+    "Nick Woltemade": "沃尔特马德", "Malick Thiaw": "蒂亚乌", "Sven Botman": "博特曼",
+    "Kieran Trippier": "特里皮尔", "Fabian Schär": "舍尔", "Dan Burn": "伯恩",
+    "Aaron Ramsdale": "拉姆斯代尔", "Nick Pope": "波普",
+    # 西甲
+    "Kylian Mbappé": "姆巴佩", "Kylian Mbappe": "姆巴佩",
+    "Vinícius Júnior": "维尼修斯", "Vinicius Junior": "维尼修斯",
+    "Jude Bellingham": "贝林厄姆", "Rodrygo": "罗德里戈",
+    "Federico Valverde": "巴尔韦德", "Aurélien Tchouaméni": "楚阿梅尼",
+    "Aurelien Tchouameni": "楚阿梅尼", "Eduardo Camavinga": "卡马文加",
+    "Thibaut Courtois": "库尔图瓦", "Éder Militão": "米利唐", "Eder Militao": "米利唐",
+    "Antonio Rüdiger": "吕迪格", "Antonio Rudiger": "吕迪格",
+    "Ferland Mendy": "门迪", "Fran García": "弗兰·加西亚", "Fran Garcia": "弗兰·加西亚",
+    "Dani Ceballos": "塞瓦略斯", "Arda Güler": "居莱尔", "Arda Guler": "居莱尔",
+    "Brahim Díaz": "卜拉欣·迪亚斯", "Brahim Diaz": "卜拉欣·迪亚斯",
+    "Robert Lewandowski": "莱万多夫斯基", "Lamine Yamal": "亚马尔", "Pedri": "佩德里",
+    "Gavi": "加维", "Frenkie de Jong": "德容", "Raphinha": "拉菲尼亚",
+    "Dani Olmo": "奥尔莫", "Fermín López": "费尔明", "Fermin Lopez": "费尔明",
+    "Ferran Torres": "费兰·托雷斯", "Marc-André ter Stegen": "特尔施特根",
+    "Marc-Andre ter Stegen": "特尔施特根", "Wojciech Szczęsny": "什琴斯尼",
+    "Wojciech Szczesny": "什琴斯尼", "Pau Cubarsí": "库巴西", "Pau Cubarsi": "库巴西",
+    "Ronald Araújo": "阿劳霍", "Ronald Araujo": "阿劳霍",
+    "Jules Koundé": "孔德", "Jules Kounde": "孔德",
+    "Alejandro Balde": "巴尔德", "Andreas Christensen": "克里斯滕森",
+    "Eric García": "埃里克·加西亚", "Eric Garcia": "埃里克·加西亚",
+    "Julián Álvarez": "阿尔瓦雷斯", "Julian Alvarez": "阿尔瓦雷斯",
+    "Antoine Griezmann": "格列兹曼", "Jan Oblak": "奥布拉克",
+    "Rodrigo De Paul": "德保罗", "Koke": "科克", "Pablo Barrios": "巴里奥斯",
+    "Alexander Sørloth": "索尔洛特", "Alexander Sorloth": "索尔洛特",
+    "Giuliano Simeone": "西蒙尼", "Robin Le Normand": "勒诺尔芒",
+    "Álvaro Morata": "莫拉塔", "Alvaro Morata": "莫拉塔",
+    "Nico Williams": "尼科·威廉姆斯", "Iñaki Williams": "伊尼亚基·威廉姆斯",
+    "Inaki Williams": "伊尼亚基·威廉姆斯", "Unai Simón": "乌奈·西蒙",
+    "Unai Simon": "乌奈·西蒙", "Aymeric Laporte": "拉波尔特",
+    "Dani Vivian": "维维安", "Oihan Sancet": "桑塞特",
+    "Mikel Oyarzabal": "奥亚萨瓦尔", "Martín Zubimendi": "苏比门迪",
+    "Martin Zubimendi": "苏比门迪", "Takefusa Kubo": "久保建英",
+    "Brais Méndez": "门德斯", "Brais Mendez": "门德斯",
+    # 意甲
+    "Lautaro Martínez": "劳塔罗", "Lautaro Martinez": "劳塔罗",
+    "Nicolò Barella": "巴雷拉", "Nicolo Barella": "巴雷拉",
+    "Marcus Thuram": "图拉姆", "Alessandro Bastoni": "巴斯托尼",
+    "Hakan Çalhanoğlu": "恰尔汗奥卢", "Hakan Calhanoglu": "恰尔汗奥卢",
+    "Federico Dimarco": "迪马尔科", "Yann Sommer": "索默",
+    "Francesco Acerbi": "阿切尔比", "Denzel Dumfries": "邓弗里斯",
+    "Henrikh Mkhitaryan": "姆希塔良", "Scott McTominay": "麦克托米奈",
+    "Romelu Lukaku": "卢卡库", "Frank Anguissa": "安古伊萨",
+    "Stanislav Lobotka": "洛博特卡", "Giovanni Di Lorenzo": "迪洛伦佐",
+    "Rasmus": "拉斯穆斯", "Rafael Leão": "莱奥", "Rafael Leao": "莱奥",
+    "Christian Pulisic": "普利西奇", "Luka Modrić": "莫德里奇", "Luka Modric": "莫德里奇",
+    "Tijjani Reijnders": "赖因德斯", "Youssouf Fofana": "福法纳",
+    "Mike Maignan": "迈尼昂", "Theo Hernández": "特奥", "Theo Hernandez": "特奥",
+    "Fikayo Tomori": "托莫里", "Santiago Giménez": "希门尼斯", "Santiago Gimenez": "希门尼斯",
+    "Dušan Vlahović": "弗拉霍维奇", "Dusan Vlahovic": "弗拉霍维奇",
+    "Kenan Yıldız": "耶尔德兹", "Kenan Yildiz": "耶尔德兹",
+    "Manuel Locatelli": "洛卡特利", "Gleison Bremer": "布雷默",
+    "Andrea Cambiaso": "坎比亚索", "Ivan Perišić": "佩里西奇", "Ivan Perisic": "佩里西奇",
+    # 德甲
+    "Harry Kane": "凯恩", "Jamal Musiala": "穆西亚拉", "Thomas Müller": "穆勒",
+    "Thomas Muller": "穆勒", "Manuel Neuer": "诺伊尔", "Joshua Kimmich": "基米希",
+    "Leon Goretzka": "格雷茨卡", "Serge Gnabry": "格纳布里",
+    "Leroy Sané": "萨内", "Leroy Sane": "萨内", "Kingsley Coman": "科曼",
+    "Michael Olise": "奥利塞", "Dayot Upamecano": "乌帕梅卡诺",
+    "Alphonso Davies": "戴维斯", "Konrad Laimer": "莱默尔",
+    "Florian Wirtz": "维尔茨", "Jeremie Frimpong": "弗林蓬", "Granit Xhaka": "扎卡",
+    "Patrik Schick": "希克", "Alejandro Grimaldo": "格里马尔多",
+    "Robert Andrich": "安德里希", "Exequiel Palacios": "帕拉西奥斯",
+    "Jonathan Tah": "塔", "Edmond Tapsoba": "塔普索巴",
+    "Piero Hincapié": "因卡皮耶", "Piero Hincapie": "因卡皮耶",
+    "Serhou Guirassy": "吉拉西", "Karim Adeyemi": "阿德耶米",
+    "Julian Brandt": "布兰特", "Marcel Sabitzer": "萨比策", "Emre Can": "埃姆雷·詹",
+    "Nico Schlotterbeck": "施洛特贝克", "Gregor Kobel": "科贝尔",
+    "Ramy Bensebaini": "本塞拜尼", "Xavi Simons": "哈维·西蒙斯",
+    "Loïs Openda": "奥彭达", "Lois Openda": "奥彭达", "Willi Orbán": "奥尔班",
+    "Willi Orban": "奥尔班", "David Raum": "劳姆", "Péter Gulácsi": "古拉奇",
+    "Peter Gulacsi": "古拉奇",
+    # 法甲
+    "Ousmane Dembélé": "登贝莱", "Ousmane Dembele": "登贝莱",
+    "Achraf Hakimi": "阿什拉夫", "Marquinhos": "马尔基尼奥斯",
+    "Nuno Mendes": "努诺·门德斯", "Vitinha": "维蒂尼亚",
+    "João Neves": "若奥·内维斯", "Joao Neves": "若奥·内维斯",
+    "Fabián Ruiz": "法比安·鲁伊斯", "Fabian Ruiz": "法比安·鲁伊斯",
+    "Désiré Doué": "杜埃", "Desire Doue": "杜埃",
+    "Khvicha Kvaratskhelia": "克瓦拉茨赫利亚", "Bradley Barcola": "巴尔科拉",
+    "Gonçalo Ramos": "贡萨洛·拉莫斯", "Goncalo Ramos": "贡萨洛·拉莫斯",
+    "Lucas Beraldo": "贝拉尔多", "Willian Pacho": "帕乔",
+    "Lucas Chevalier": "舍瓦利耶", "Emiliano Martínez": "马丁内斯",
+    "Emiliano Martinez": "马丁内斯",
+    # 其他 / 老将
+    "Lionel Messi": "梅西", "Cristiano Ronaldo": "C罗", "Neymar": "内马尔",
+    "Neymar Jr": "内马尔", "Karim Benzema": "本泽马", "Sergio Ramos": "拉莫斯",
+    "Ángel Di María": "迪马利亚", "Angel Di Maria": "迪马利亚",
+    "Memphis Depay": "德佩", "Luis Suárez": "苏亚雷斯", "Luis Suarez": "苏亚雷斯",
+    "Darwin Núñez": "努涅斯", "Darwin Nunez": "努涅斯",
+    "Victor Osimhen": "奥斯梅恩", "Victor Boniface": "博尼法斯",
+    "Youssef En-Nesyri": "恩内斯里", "Mauro Icardi": "伊卡尔迪",
+    "Kerem Aktürkoğlu": "阿克蒂尔科格鲁", "Kerem Akturkoglu": "阿克蒂尔科格鲁",
+    "Vangelis Pavlidis": "帕夫利迪斯", "Mohamed Salah": "萨拉赫",
+    "Edin Džeko": "哲科", "Sergio Busquets": "布斯克茨",
+}
+
+
+def _cn_key(s: str) -> str:
+    """去重音 + 小写，便于 Rúben Dias / Ruben Dias 互相匹配。"""
+    norm = unicodedata.normalize("NFD", s or "")
+    return "".join(c for c in norm if unicodedata.category(c) != "Mn").lower().strip()
+
+
+_PLAYER_CN_NORM: dict[str, str] = {_cn_key(k): v for k, v in PLAYER_CN.items()}
+
+
+def player_cn(name: str) -> str:
+    """英文名 -> 中文名（无译名时原样返回）。"""
+    return _PLAYER_CN_NORM.get(_cn_key(name), name)
+
+
 def _find_or_create_player(db: Session, name: str | None, team) -> int | None:
     """真实球员：按队内姓名匹配，缺失则建占位球员（真实数据源无赛季汇总数据）。"""
     from app.models import Player
@@ -1441,7 +1651,7 @@ def _find_or_create_player(db: Session, name: str | None, team) -> int | None:
     if p:
         return p.id
     p = Player(
-        team_id=team.id, name=name, name_en=name, position="MF",
+        team_id=team.id, name=player_cn(name), name_en=name, position="MF",
         number=0, age=0, rating=6.5, ai_rating=6.5, status="normal",
         season_stats={}, provider="espn",
     )
@@ -1450,46 +1660,301 @@ def _find_or_create_player(db: Session, name: str | None, team) -> int | None:
     return p.id
 
 
-_POS_MAP = {"G": "GK", "GK": "GK", "D": "DF", "DF": "DF", "M": "MF", "MF": "MF",
-            "F": "FW", "FW": "FW", "A": "FW", "ST": "FW"}
+# ESPN 的位置缩写是「细粒度」的：G / CD-L / CD-R / LB / RB / DM / CM / AM / LW / RW / ST …
+# 早期只映射了单字母，导致哈兰德、鲁本·迪亚斯这些人全被判成 MF —— 阵容看起来全是中场。
+_POS_EXACT = {
+    "G": "GK", "GK": "GK", "GKP": "GK", "K": "GK",
+    "D": "DF", "DF": "DF", "CB": "DF", "CD": "DF", "WB": "DF", "LB": "DF", "RB": "DF",
+    "LWB": "DF", "RWB": "DF", "SW": "DF",
+    "M": "MF", "MF": "MF", "DM": "MF", "CM": "MF", "AM": "MF", "LM": "MF", "RM": "MF",
+    "F": "FW", "FW": "FW", "A": "FW", "ST": "FW", "CF": "FW", "SS": "FW",
+    "LW": "FW", "RW": "FW",
+}
+
+
+def _norm_pos(raw: Any) -> str:
+    """把 ESPN 位置缩写归一到 GK/DF/MF/FW。"""
+    if isinstance(raw, dict):
+        raw = raw.get("abbreviation") or raw.get("displayName") or raw.get("name") or ""
+    s = str(raw or "").strip().upper()
+    if not s:
+        return "MF"
+    if s in _POS_EXACT:
+        return _POS_EXACT[s]
+    # 去掉 -L/-R/-C 之类的方位后缀再查一次
+    base = s.split("-")[0]
+    if base in _POS_EXACT:
+        return _POS_EXACT[base]
+    # 关键词兜底
+    if "GOAL" in s or s.startswith("G"):
+        return "GK"
+    if "BACK" in s or "DEF" in s or s.startswith("D") or s.endswith("B"):
+        return "DF"
+    if "WING" in s or "FORWARD" in s or "STRIKER" in s or s.startswith("F"):
+        return "FW"
+    if "MID" in s:
+        return "MF"
+    return "MF"
+
+
+def _stats_from_athlete(a: dict) -> dict[str, float]:
+    """从 ESPN 球员 statistics 结构里抽出我们用到的赛季数据。"""
+    out: dict[str, float] = {}
+    cats = ((a.get("statistics") or {}).get("splits") or {}).get("categories") or []
+    alias = {
+        "appearances": "appearances", "yellowCards": "yellow_cards",
+        "redCards": "red_cards", "totalGoals": "goals", "goalAssists": "assists",
+        "totalShots": "shots", "shotsOnTarget": "shots_on_target",
+        "saves": "saves", "shotsFaced": "shots_faced",
+        "goalsConceded": "goals_conceded", "foulsCommitted": "fouls",
+    }
+    for c in cats:
+        for s in c.get("stats") or []:
+            key = alias.get(s.get("name"))
+            if key:
+                try:
+                    out[key] = float(s.get("value") or 0)
+                except (TypeError, ValueError):
+                    pass
+    return out
+
+
+def _ai_rating(st: dict, pos: str, team_elo: float | None) -> float:
+    """由真实赛季产出推算 AI Player Rating（0-10）。
+
+    ESPN 不提供评分，这里用 进球/助攻/射正/扑救 的每场产出 + 球队强度微调。
+    """
+    app = st.get("appearances") or 0
+    if app <= 0:
+        r = 6.4
+    elif pos == "GK":
+        # 别用 saves/shotsFaced 算扑救率：ESPN 这两个字段口径不一致
+        # （出现过 saves 39 / shotsFaced 14 这种），算出来的比率 >1 会把评分顶到上限。
+        # 改用「每场失球」为主 + 每场扑救为辅。
+        gc_app = (st.get("goals_conceded") or 0) / app
+        sv_app = (st.get("saves") or 0) / app
+        r = 7.55 - max(-0.6, min(1.7, (gc_app - 1.0) * 0.5)) + min(0.45, sv_app * 0.07)
+    else:
+        g90, a90 = (st.get("goals") or 0) / app, (st.get("assists") or 0) / app
+        sot = (st.get("shots_on_target") or 0) / app
+        r = 6.25 + min(1.45, g90 * 1.15) + min(0.9, a90 * 0.8) + min(0.35, sot * 0.14)
+    r -= min(0.35, (st.get("yellow_cards") or 0) * 0.03 + (st.get("red_cards") or 0) * 0.25)
+    if team_elo:
+        r += max(-0.3, min(0.3, (team_elo - 1500) / 400 * 0.28))
+    return round(max(5.6, min(9.5, r)), 1)
+
+
+def _upsert_player(db: Session, team, name: str, pos: str, jersey: int, age: int,
+                   st: dict, rating: float) -> bool:
+    """写入/更新一名球员，返回是否新建。"""
+    from app.models import Player
+
+    cn = player_cn(name)
+    p = db.query(Player).filter(Player.team_id == team.id, Player.name_en == name).first()
+    if p is None:
+        db.add(Player(
+            team_id=team.id, name=cn, name_en=name, position=pos, number=jersey,
+            age=age, rating=rating, ai_rating=rating, status="normal",
+            season_stats=st, provider="espn",
+        ))
+        return True
+    p.provider = "espn"
+    p.name = cn
+    p.position = pos
+    if jersey:
+        p.number = jersey
+    if age:
+        p.age = age
+    p.season_stats = st
+    p.ai_rating = rating
+    p.rating = rating
+    return False
 
 
 def _sync_roster(db: Session, team, roster: list, home_away: str) -> int:
-    """把 ESPN 阵容写入球队（真实球员：姓名/号码/位置）。"""
-    from app.models import Player
+    """把 ESPN 比赛名单写入球队（姓名/号码/位置）。
 
+    比赛 summary 里的名单只有登场球员，且位置是细粒度缩写（CD-L/DM/…），
+    必须走 _norm_pos，否则全队都会变成中场。
+    """
     created = 0
     for entry in roster or []:
         ath = entry.get("athlete") or {}
         name = ath.get("displayName") or ath.get("shortName")
         if not name:
             continue
-        pos_raw = entry.get("position") or ath.get("position") or {}
-        if isinstance(pos_raw, dict):
-            pos_raw = pos_raw.get("abbreviation") or ""
-        jersey = entry.get("jersey") or ath.get("jersey")
+        pos = _norm_pos(entry.get("position"))
         try:
-            jersey = int(jersey) if jersey else 0
+            jersey = int(entry.get("jersey") or ath.get("jersey") or 0)
         except (TypeError, ValueError):
             jersey = 0
-        exists = db.query(Player).filter(
-            Player.team_id == team.id, Player.name_en == name).first()
-        if exists:
-            if exists.provider != "espn":
-                exists.provider = "espn"
-            if jersey and exists.number == 0:
-                exists.number = jersey
-            continue
-        db.add(Player(
-            team_id=team.id, name=name, name_en=name,
-            position=_POS_MAP.get(str(pos_raw).upper(), "MF"),
-            number=jersey, age=ath.get("age") or 0,
-            rating=6.5, ai_rating=6.5, status="normal",
-            season_stats={}, provider="espn",
-        ))
-        created += 1
+        if _upsert_player(db, team, name, pos, jersey, int(ath.get("age") or 0), {}, 6.5):
+            created += 1
     db.flush()
     return created
+
+
+def fetch_team_roster(slug: str, team_id: str) -> list[dict[str, Any]]:
+    """球队完整名单：https://.../soccer/{slug}/teams/{id}/roster
+
+    比比赛 summary 的名单更全（一线队全员，含号码/年龄/国籍/赛季统计），
+    是「球队阵容」页面的正确数据源。
+    """
+    d = _get(f"{BASE}/{slug}/teams/{team_id}/roster", timeout=15)
+    out: list[dict[str, Any]] = []
+    for a in d.get("athletes") or []:
+        name = a.get("displayName") or a.get("fullName")
+        if not name:
+            continue
+        try:
+            jersey = int(a.get("jersey") or 0)
+        except (TypeError, ValueError):
+            jersey = 0
+        out.append({
+            "name": name,
+            "position": _norm_pos(a.get("position")),
+            "jersey": jersey,
+            "age": int(a.get("age") or 0),
+            "country": ((a.get("citizenshipCountry") or {}) or {}).get("abbreviation")
+            or a.get("citizenship") or "",
+            "stats": _stats_from_athlete(a),
+            "status": ((a.get("status") or {}).get("type") or "active"),
+        })
+    return out
+
+
+def _safe_roster(job: tuple[str, str, int]) -> tuple[int, list[dict[str, Any]]]:
+    slug, tid, local_id = job
+    try:
+        return local_id, fetch_team_roster(slug, tid)
+    except Exception:
+        return local_id, []
+
+
+def _chunks(seq: list, size: int = 400):
+    """分批：SQLite 对 SQL 变量数量有上限，IN(...) 一次别塞太多。"""
+    for i in range(0, len(seq), size):
+        yield seq[i:i + size]
+
+
+def purge_mock_data(db: Session) -> dict[str, Any]:
+    """清掉模拟数据残留。
+
+    早期模拟库生成的 mock 球员仍挂在真实球队上（曼城 20 名真实球员 + 18 名
+    "埃利斯/默里/韦斯特"），阵容页会混进根本不存在的球员。真实数据源接管后
+    这些记录必须清掉。
+    """
+    from app.models import Match, MatchEvent, Player, Team, TeamRating
+
+    res: dict[str, Any] = {"players": 0, "teams": 0, "error": None}
+    try:
+        ids = [i for (i,) in db.query(Player.id).filter(Player.provider == "mock").all()]
+        if ids:
+            # match_events.player_id 是外键：先解引用再删球员
+            for part in _chunks(ids):
+                db.query(MatchEvent).filter(
+                    (MatchEvent.player_id.in_(part)) | (MatchEvent.related_player_id.in_(part))
+                ).delete(synchronize_session=False)
+            for part in _chunks(ids):
+                db.query(Player).filter(Player.id.in_(part)).delete(
+                    synchronize_session=False)
+            res["players"] = len(ids)
+        # 没有任何比赛的模拟球队（已被真实联赛覆盖）一并清掉
+        tids = [
+            t.id for t in db.query(Team).filter(Team.provider == "mock").all()
+            if not db.query(Match.id).filter(
+                (Match.home_team_id == t.id) | (Match.away_team_id == t.id)
+            ).first()
+        ]
+        if tids:
+            db.query(TeamRating).filter(TeamRating.team_id.in_(tids)).delete(
+                synchronize_session=False)
+            db.query(Team).filter(Team.id.in_(tids)).delete(synchronize_session=False)
+            res["teams"] = len(tids)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        res["error"] = str(e)
+    return res
+
+
+def sync_rosters(db: Session, budget: int | None = None) -> dict[str, Any]:
+    """批量同步真实球队名单。
+
+    目标球队优先级：近期可见赛程涉及的球队 > 重点联赛球队 > 其余按 Elo 降序。
+    """
+    from app.core.config import settings
+    from app.models import League, Match, Player, Team
+
+    result = {"teams": 0, "players": 0, "created": 0, "skipped": 0, "error": None}
+    try:
+        if budget is None:
+            budget = getattr(settings, "ESPN_ROSTER_BUDGET", 160)
+        backfill_league_slugs(db)
+        leagues = {lg.id: lg.slug for lg in db.query(League).all() if lg.slug}
+
+        recent: set[int] = set()
+        for a, b in db.query(Match.home_team_id, Match.away_team_id).filter(
+            Match.is_history.is_(False)
+        ).all():
+            recent.add(a)
+            recent.add(b)
+        teams = db.query(Team).filter(Team.provider == "espn").all()
+
+        def _rank(t: Team) -> tuple:
+            key = 0 if t.league and t.league.is_key else 1
+            return (0 if t.id in recent else 1, key, -(t.elo_rating or 0))
+
+        teams.sort(key=_rank)
+        jobs: list[tuple[str, str, int]] = []
+        for t in teams:
+            slug = leagues.get(t.league_id)
+            if slug and t.provider_team_id:
+                jobs.append((slug, t.provider_team_id, t.id))
+        chosen = jobs[:budget]
+        result["skipped"] = max(0, len(jobs) - budget)
+
+        fetched: dict[int, list[dict[str, Any]]] = {}
+        if chosen:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for local_id, roster in pool.map(_safe_roster, chosen):
+                    if roster:
+                        fetched[local_id] = roster
+
+        by_id = {t.id: t for t in teams}
+        for local_id, roster in fetched.items():
+            team = by_id.get(local_id)
+            if team is None:
+                continue
+            names = {r["name"] for r in roster}
+            # 清掉不在名单里的旧球员（转会/租借后原记录会残留）
+            stale = [p for p in (team.players or [])
+                     if p.provider == "espn" and p.name_en not in names]
+            if stale:
+                from app.models import MatchEvent
+
+                ids = [p.id for p in stale]
+                for part in _chunks(ids):
+                    db.query(MatchEvent).filter(
+                        (MatchEvent.player_id.in_(part))
+                        | (MatchEvent.related_player_id.in_(part))
+                    ).delete(synchronize_session=False)
+                for part in _chunks(ids):
+                    db.query(Player).filter(Player.id.in_(part)).delete(
+                        synchronize_session=False)
+            for r in roster:
+                rating = _ai_rating(r["stats"], r["position"], team.elo_rating)
+                if _upsert_player(db, team, r["name"], r["position"], r["jersey"],
+                                  r["age"], r["stats"], rating):
+                    result["created"] += 1
+                result["players"] += 1
+            result["teams"] += 1
+        db.commit()
+        result["ok"] = True
+    except Exception as e:
+        db.rollback()
+        result["error"] = str(e)
+    return result
 
 
 def _parse_dt(s: str | None) -> datetime | None:

@@ -67,7 +67,7 @@ export default function TeamsPage() {
                 {g.teams.map((t, i) => (
                   <Link
                     key={t.id}
-                    href={`/team/${t.id}`}
+                    href={`/team/?id=${t.id}`}
                     className="rise-in flex items-center gap-3 rounded-xl border border-line bg-panel2 px-3.5 py-3 transition-colors hover:border-[#28437f]"
                     style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
                   >

@@ -111,12 +111,21 @@ async def lifespan(app: FastAPI):
                 finally:
                     dbe.close()
 
-            # 3) 启动首轮：拉全量赛程 + 详情（事件/统计/阵容）
+            # 3) 启动首轮：拉全量赛程 + 详情（事件/统计/比赛名单）
             db2 = SessionLocal()
             try:
                 print(f"[boot] ESPN sync: {espn.sync(db2, with_details=True)}", flush=True)
             finally:
                 db2.close()
+            # 3.5) 清掉模拟数据残留 + 拉真实球队名单（位置/号码/年龄/赛季数据）
+            dbm = SessionLocal()
+            try:
+                print(f"[boot] purge mock: {espn.purge_mock_data(dbm)}", flush=True)
+                print(f"[boot] rosters: {espn.sync_rosters(dbm)}", flush=True)
+            except Exception as e:
+                print(f"[boot] roster sync failed: {e}", flush=True)
+            finally:
+                dbm.close()
             # 4) Elo 更新后重算预测（否则胜率还是旧的均匀分布）
             dbp = SessionLocal()
             try:
@@ -137,8 +146,8 @@ async def lifespan(app: FastAPI):
                     ret = {}
                 finally:
                     db3.close()
-                # 每 12 轮（1 小时）用累积的真实赛果重算 Elo，
-                # 否则整个赛季的强度都不会更新
+        # 每 12 轮（1 小时）用累积的真实赛果重算 Elo，
+        # 否则整个赛季的强度都不会更新
                 if n % 12 == 1:
                     dbe2 = SessionLocal()
                     try:
@@ -162,6 +171,18 @@ async def lifespan(app: FastAPI):
                     print(f"[espn] repredict failed: {e}", flush=True)
                 if ret.get("matches") and n % 10 == 0:
                     print(f"[espn] sync#{n}: {ret}", flush=True)
+                # 每 24 轮（2 小时）刷新一次球队名单：转会/号码变动不频繁，
+                # 只刷少量重点球队，避免每轮打几百个请求
+                if n % 24 == 5:
+                    dbr = SessionLocal()
+                    try:
+                        rr = espn.sync_rosters(dbr, budget=60)
+                    except Exception as e:
+                        print(f"[espn] roster sync failed: {e}", flush=True)
+                        rr = {}
+                    finally:
+                        dbr.close()
+                    print(f"[espn] rosters#{n}: {rr}", flush=True)
 
         threading.Thread(target=_sync_loop, daemon=True).start()
     # Phase 4: WebSocket 广播循环改为在首个 WS 连接时启动（见 ws.ensure_broadcast_task）

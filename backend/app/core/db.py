@@ -48,6 +48,7 @@ _EXTRA_COLUMNS: dict[str, dict[str, str]] = {
     "leagues": {
         "competition_type": "VARCHAR(24) DEFAULT 'domestic'",
         "is_key": "BOOLEAN DEFAULT 0",
+        "slug": "VARCHAR(48)",
     },
 }
 

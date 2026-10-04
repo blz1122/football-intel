@@ -66,9 +66,13 @@ def list_players(
     league_id: int | None = None,
     team_id: int | None = None,
     position: str | None = None,
+    limit: int = 300,
     db: Session = Depends(get_db),
 ):
-    """球员列表（可按联赛/球队/位置过滤），按 AI 评分降序。"""
+    """球员列表（可按联赛/球队/位置过滤），按 AI 评分降序。
+
+    真实名单有几万名球员：必须 SQL 侧 limit，否则这个接口会返回十几 MB JSON。
+    """
     q = db.query(Player).join(Team, Player.team_id == Team.id)
     if team_id:
         q = q.filter(Player.team_id == team_id)
@@ -79,8 +83,7 @@ def list_players(
     real_ids = _real_mode(db)
     if real_ids:
         q = q.filter(Player.team_id.in_(real_ids), Player.provider == "espn")
-    players = q.all()
-    players.sort(key=lambda p: p.ai_rating or 0, reverse=True)
+    players = q.order_by(Player.ai_rating.desc()).limit(max(1, min(limit, 2000))).all()
     return [
         PlayerListItem(
             id=p.id, name=p.name, name_en=p.name_en, position=p.position,
