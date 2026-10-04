@@ -25,19 +25,15 @@ def _player_brief(p: Player) -> PlayerBrief:
 
 
 def _real_mode(db: Session) -> set[int]:
-    """真实数据源生效时，返回参与真实比赛的球队 id 集合（空集表示模拟模式）。"""
-    from app.models import Match
+    """真实数据源生效时，返回真实球队 id 集合（空集表示模拟模式）。
 
-    rows = (
-        db.query(Match.home_team_id, Match.away_team_id)
-        .filter(Match.provider == "espn")
-        .all()
-    )
-    ids: set[int] = set()
-    for h, a in rows:
-        ids.add(h)
-        ids.add(a)
-    return ids
+    直接查 Team.provider 而不是遍历比赛 —— 历史样本库有 2 万+ 比赛，
+    逐场取 id 会让这个接口慢到不可用。
+    """
+    from app.models import Team
+
+    rows = db.query(Team.id).filter(Team.provider == "espn").all()
+    return {i for (i,) in rows}
 
 
 @router.get("/teams", response_model=list[TeamListItem])

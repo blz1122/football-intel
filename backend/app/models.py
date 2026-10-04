@@ -31,6 +31,9 @@ class League(Base):
     short_name: Mapped[str] = mapped_column(String(16))
     country: Mapped[str] = mapped_column(String(60))
     logo_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # 赛事分组：五大联赛/洲际赛事/国家队/英格兰/西班牙/... 前端据此分组筛选
+    competition_type: Mapped[str] = mapped_column(String(24), default="domestic", index=True)
+    is_key: Mapped[bool] = mapped_column(Boolean, default=False)  # 重点赛事
 
     teams: Mapped[list["Team"]] = relationship(back_populates="league")
 
@@ -103,6 +106,9 @@ class Match(Base):
     score_home: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     score_away: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     stats_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # True = 历史样本库（sync_history 写入，仅用于 Elo 反推/模型训练，不进界面列表）。
+    # 日常同步的清理逻辑会跳过这些记录，否则刚同步的 2 万场历史会被立刻删掉。
+    is_history: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
     league: Mapped[League] = relationship()
     home_team: Mapped[Team] = relationship(foreign_keys=[home_team_id])

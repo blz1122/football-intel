@@ -6,7 +6,7 @@ import MatchRow from "@/components/MatchRow";
 import DataSource, { useDataSource } from "@/components/DataSource";
 import { MatchRowSkeleton, Panel, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
-import type { MatchListItem } from "@/lib/types";
+import type { LeagueInfo, MatchListItem } from "@/lib/types";
 import { useLiveSocket } from "@/lib/useLiveSocket";
 import { usePolling } from "@/lib/usePolling";
 
@@ -16,6 +16,9 @@ const TABS = [
   { key: "all", label: "今日全部" },
   { key: "finished", label: "已结束" },
 ] as const;
+
+// 55 个赛事源下"今日全部"可达上百场，分页渲染避免首屏卡顿
+const PAGE_SIZE = 40;
 
 function groupOf(m: MatchListItem) {
   if (m.status === "live" || m.status === "halftime") return "live";
@@ -33,6 +36,8 @@ export default function Dashboard() {
 
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("live");
   const [league, setLeague] = useState<number | "all">("all");
+  const [compType, setCompType] = useState<"all" | "continental" | "national" | "domestic">("all");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [autoPicked, setAutoPicked] = useState(false);
 
   // 非比赛日（或数据源暂无进行中比赛）时自动切到有内容的分组，避免空白页
@@ -72,9 +77,34 @@ export default function Dashboard() {
     });
   }, [matches, updates]);
 
+  // 联赛按赛事类型（洲际/国家队/国内）分组，供筛选器使用
+  const leagueById = useMemo(() => {
+    const m = new Map<number, LeagueInfo>();
+    (leagues ?? []).forEach((l) => m.set(l.id, l));
+    return m;
+  }, [leagues]);
+
+  const visibleLeagues = useMemo(() => {
+    const list = (leagues ?? []).filter(
+      (l) => compType === "all" || l.competition_type === compType,
+    );
+    // 选中的联赛若被类型过滤掉，自动回退到全部
+    return list;
+  }, [leagues, compType]);
+
+  const COMP_TABS = [
+    { key: "all" as const, label: "全部赛事" },
+    { key: "continental" as const, label: "洲际赛事" },
+    { key: "national" as const, label: "国家队" },
+    { key: "domestic" as const, label: "各国联赛" },
+  ];
+
   const filtered = useMemo(() => {
     let list = liveMatches;
     if (league !== "all") list = list.filter((m) => m.league.id === league);
+    else if (compType !== "all") {
+      list = list.filter((m) => leagueById.get(m.league.id)?.competition_type === compType);
+    }
     if (tab === "live") list = list.filter((m) => groupOf(m) === "live");
     if (tab === "scheduled") list = list.filter((m) => groupOf(m) === "scheduled");
     if (tab === "finished") list = list.filter((m) => groupOf(m) === "finished");
@@ -82,10 +112,15 @@ export default function Dashboard() {
       (a, b) => new Date(b.kickoff_at).getTime() - new Date(a.kickoff_at).getTime(),
     );
     return list;
-  }, [liveMatches, tab, league]);
+  }, [liveMatches, tab, league, compType, leagueById]);
+
+  // 切换标签/筛选时回到第一页
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [tab, league, compType]);
 
   const kpiCards = [
-    { l: "今日比赛", v: kpis?.total_today ?? "—", t: "5 大联赛 · 实时" },
+    { l: "今日比赛", v: kpis?.total_today ?? "—", t: `覆盖 ${leagues?.length ?? 0} 个赛事 · 实时` },
     { l: "AI 预测准确率 (7日)", v: kpis ? `${kpis.accuracy_7d}%` : "—", t: "胜平负方向命中" },
     { l: "模型 Brier Score", v: kpis?.brier_score ?? "—", t: "越低越好 · 优于随机 0.333" },
     { l: "进行中", v: liveCount ?? kpis?.live_now ?? "—", t: connected ? "WebSocket 实时推送" : "REST 轮询兜底" },
@@ -135,18 +170,45 @@ export default function Dashboard() {
                 </button>
               );
             })}
-            <select
-              className="ml-auto rounded-lg border border-line2 bg-panel2 px-3 py-1.5 text-xs font-semibold text-sub outline-none"
-              value={league}
-              onChange={(e) => setLeague(e.target.value === "all" ? "all" : Number(e.target.value))}
-            >
-              <option value="all">全部联赛</option>
-              {(leagues ?? []).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="flex overflow-hidden rounded-lg border border-line2">
+                {COMP_TABS.map((c) => (
+                  <button
+                    key={c.key}
+                    onClick={() => {
+                      setCompType(c.key);
+                      setLeague("all");
+                    }}
+                    className={`px-2.5 py-1.5 text-[11px] font-bold transition ${
+                      compType === c.key
+                        ? "bg-[#28437f] text-[#9db9ff]"
+                        : "bg-panel2 text-sub hover:text-txt"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <select
+                className="max-w-[190px] rounded-lg border border-line2 bg-panel2 px-3 py-1.5 text-xs font-semibold text-sub outline-none"
+                value={league}
+                onChange={(e) => {
+                  setLeague(e.target.value === "all" ? "all" : Number(e.target.value));
+                  const lg = (leagues ?? []).find(
+                    (l) => l.id === Number(e.target.value),
+                  );
+                  if (lg) setCompType(lg.competition_type);
+                }}
+              >
+                <option value="all">全部联赛（{visibleLeagues.length}）</option>
+                {visibleLeagues.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                    {l.match_count > 0 ? ` (${l.match_count})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="mt-3">
             {loading ? (
@@ -170,11 +232,21 @@ export default function Dashboard() {
                 )}
               </div>
             ) : (
-              filtered.map((m, i) => (
-                <div key={m.id} className="rise-in" style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}>
-                  <MatchRow m={m} />
-                </div>
-              ))
+              <>
+                {filtered.slice(0, visibleCount).map((m, i) => (
+                  <div key={m.id} className="rise-in" style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}>
+                    <MatchRow m={m} />
+                  </div>
+                ))}
+                {filtered.length > visibleCount && (
+                  <button
+                    onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                    className="w-full border-t border-line py-3 text-xs font-bold text-sub transition hover:bg-panel2 hover:text-txt"
+                  >
+                    显示更多（还有 {filtered.length - visibleCount} 场）· 已显示 {visibleCount}/{filtered.length}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </Panel>

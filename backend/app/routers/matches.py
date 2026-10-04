@@ -88,7 +88,13 @@ def _goal_minutes(events) -> tuple[list[int], list[int]]:
 
 
 def _win_prob(m: Match, state: dict, hs: int, as_: int, pred: MatchPrediction) -> WinProb:
+    # 赛前预测：直接用模型输出
     if state["status"] == "scheduled":
+        return WinProb(home=pred.p_home, draw=pred.p_draw, away=pred.p_away)
+    # 已结束：展示赛前预测而非赛后重算。
+    # 真实数据源下 lambda 可能很小（强弱悬殊），inmatch() 代入终场比分会算出 0/1/0
+    # 这种无意义的极端值；赛前概率才是"AI 预测 vs 实际"有意义对照。
+    if state["status"] == "finished":
         return WinProb(home=pred.p_home, draw=pred.p_draw, away=pred.p_away)
     p = inmatch(state["minute"] or 90, hs, as_, pred.lambda_home, pred.lambda_away)
     return WinProb(home=p["p_home"], draw=p["p_draw"], away=p["p_away"])
@@ -155,16 +161,17 @@ def list_matches(
     league_id: int | None = None,
     db: Session = Depends(get_db),
 ):
-    """比赛列表。返回近 7 日 + 未来 7 日窗口内全部比赛，由前端按状态分组展示。
+    """比赛列表。返回近 7 日 + 未来 `MATCH_WINDOW_DAYS` 日窗口内全部比赛。
 
-    窗口放宽是因为真实数据源（ESPN）的赛程可能跨周，且非比赛日时
-    需要展示最近一轮的真实结果。"""
+    窗口放宽是因为真实数据源（ESPN）的赛程可能跨周，且欧冠/世预赛等赛事
+    常在 10 天后才开赛——窗口太小会让"即将开始"看起来空空的。"""
     now = datetime.now(timezone.utc)
     q = (
         db.query(Match)
         .filter(
+            Match.is_history.is_(False),
             Match.kickoff_at >= now - timedelta(days=7),
-            Match.kickoff_at <= now + timedelta(days=7),
+            Match.kickoff_at <= now + timedelta(days=settings.MATCH_WINDOW_DAYS),
         )
     )
     if league_id:

@@ -26,6 +26,19 @@ export interface LeagueBrief {
   short_name: string;
 }
 
+/** /meta/leagues 返回的完整联赛信息（支持洲际/国家队/国内分组） */
+export interface LeagueInfo {
+  id: number;
+  name: string;
+  short_name: string;
+  name_en: string;
+  country: string;
+  competition_type: "continental" | "national" | "domestic";
+  type_label: string;
+  is_key: boolean;
+  match_count: number;
+}
+
 export interface WinProb {
   home: number;
   draw: number;

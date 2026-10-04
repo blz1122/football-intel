@@ -36,6 +36,7 @@ _EXTRA_COLUMNS: dict[str, dict[str, str]] = {
         "score_home": "SMALLINT",
         "score_away": "SMALLINT",
         "stats_json": "JSON",
+        "is_history": "BOOLEAN DEFAULT 0",
     },
     "teams": {
         "provider": "VARCHAR(16) DEFAULT 'mock'",
@@ -43,6 +44,10 @@ _EXTRA_COLUMNS: dict[str, dict[str, str]] = {
     },
     "players": {
         "provider": "VARCHAR(16) DEFAULT 'mock'",
+    },
+    "leagues": {
+        "competition_type": "VARCHAR(24) DEFAULT 'domestic'",
+        "is_key": "BOOLEAN DEFAULT 0",
     },
 }
 
@@ -61,3 +66,11 @@ def ensure_schema() -> None:
             for name, ddl in cols.items():
                 if name not in existing:
                     conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {name} {ddl}'))
+        # seasons 的 start/end_date 是 NOT NULL：历史遗留的空值补齐
+        if "seasons" in tables:
+            conn.execute(
+                text(
+                    "UPDATE seasons SET start_date='2026-07-01', end_date='2027-06-30' "
+                    "WHERE start_date IS NULL OR end_date IS NULL"
+                )
+            )

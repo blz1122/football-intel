@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -22,10 +23,29 @@ def _today_window_utc() -> tuple[datetime, datetime]:
 
 @router.get("/leagues")
 def leagues(db: Session = Depends(get_db)):
-    return [
-        {"id": l.id, "name": l.name, "short_name": l.short_name, "country": l.country}
-        for l in db.query(League).order_by(League.id).all()
-    ]
+    """联赛列表，附带赛事类型分组（洲际/国家队/国内）与是否重点赛事。"""
+    from app.models import Match
+
+    rows = (
+        db.query(League, func.count(Match.id))
+        .outerjoin(Match, Match.league_id == League.id)
+        .group_by(League.id)
+        .all()
+    )
+    type_cn = {"continental": "洲际俱乐部赛事", "national": "国家队赛事", "domestic": "各国联赛"}
+    out = []
+    for lg, n in rows:
+        out.append({
+            "id": lg.id, "name": lg.name, "short_name": lg.short_name,
+            "name_en": lg.name_en, "country": lg.country,
+            "competition_type": lg.competition_type,
+            "type_label": type_cn.get(lg.competition_type, "各国联赛"),
+            "is_key": bool(lg.is_key), "match_count": int(n or 0),
+        })
+    order = {"continental": 0, "national": 1, "domestic": 2}
+    out.sort(key=lambda x: (order.get(x["competition_type"], 3),
+                            0 if x["is_key"] else 1, x["name"]))
+    return out
 
 
 @router.get("/kpis", response_model=Kpis)
@@ -85,7 +105,8 @@ def top_predictions(db: Session = Depends(get_db)):
         pick = [f"{m.home_team.name} 胜", "平局", f"{m.away_team.name} 胜"][pick_i]
         items.append(PredictionRankItem(
             match_id=m.id,
-            title=f"{m.home_team.short_name} vs {m.away_team.short_name}",
+            # 真实数据源下 short_name 是 ESPN 缩写（ARS/LEE），用中文全名更可读
+            title=f"{m.home_team.name} vs {m.away_team.name}",
             pick=pick,
             probability=probs[pick_i],
             kickoff_at=m.kickoff_at,

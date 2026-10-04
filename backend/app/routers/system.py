@@ -20,7 +20,9 @@ def _data_source() -> dict:
 
     db = SessionLocal()
     try:
-        real = db.query(Match).filter(Match.provider == "espn").count()
+        real = db.query(Match).filter(
+            Match.provider == "espn", Match.is_history.is_(False)
+        ).count()
         total = db.query(Match).count()
     finally:
         db.close()

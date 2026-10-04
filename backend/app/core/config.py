@@ -31,6 +31,10 @@ class Settings:
     # 真实数据接入（ESPN 公开接口，无需 API key）：开启后同步真实赛程/比分/统计
     REAL_DATA: bool = os.getenv("REAL_DATA", "1").lower() in ("1", "true", "yes")
     REAL_SYNC_INTERVAL: int = int(os.getenv("REAL_SYNC_INTERVAL", "300"))  # 秒
+    # 比赛列表的未来窗口（天）。欧冠/世预赛等常在 10 天后开赛，窗口太小会漏。
+    MATCH_WINDOW_DAYS: int = int(os.getenv("MATCH_WINDOW_DAYS", "14"))
+    # 单轮同步拉取比赛详情（summary）的数量上限
+    ESPN_DETAIL_BUDGET: int = int(os.getenv("ESPN_DETAIL_BUDGET", "80"))
 
     # WebSocket 推送间隔（秒）
     WS_PUSH_INTERVAL: float = float(os.getenv("WS_PUSH_INTERVAL", "5"))
