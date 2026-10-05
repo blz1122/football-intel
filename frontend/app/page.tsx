@@ -32,7 +32,7 @@ export default function Dashboard() {
   const { data: kpis } = usePolling(() => api.kpis(), 30000);
   const { data: top } = usePolling(() => api.topPredictions(), 30000);
   const { data: leagues } = usePolling(() => api.leagues(), 300000);
-  const { updates, liveCount, connected } = useLiveSocket(true);
+  const { updates, liveCount, connected, lastMsgAt, lastUpdateAt, tick } = useLiveSocket(true);
   const ds = useDataSource();
 
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("live");
@@ -120,11 +120,46 @@ export default function Dashboard() {
     setVisibleCount(PAGE_SIZE);
   }, [tab, league, compType]);
 
+  // tick 每秒自增，保证下面的"X 秒前"会自己走
+  const ago = (t: number | null) =>
+    t == null ? null : Math.max(0, Math.round((Date.now() - t) / 1000));
+  const beatAgo = ago(lastMsgAt);
+  const updAgo = ago(lastUpdateAt);
+  void tick;
+  // 心跳超过 45 秒没来 = 链路大概率断了（服务端 20s 一帧）
+  const linkStale = connected && beatAgo != null && beatAgo > 45;
+  const linkOk = connected && !linkStale;
+
+  // 下一场开赛时间：没有直播时给用户一个"什么时候会动"的确定预期
+  const nextKick = useMemo(() => {
+    const now = Date.now();
+    const ts = (matches ?? [])
+      .filter((m) => m.status === "scheduled")
+      .map((m) => new Date(m.kickoff_at).getTime())
+      .filter((t) => t > now);
+    return ts.length ? Math.min(...ts) : null;
+  }, [matches, tick]);
+  const cdSec = nextKick == null ? null : Math.max(0, Math.round((nextKick - Date.now()) / 1000));
+  const fmtCd = (s: number) =>
+    s >= 3600
+      ? `${Math.floor(s / 3600)} 小时 ${Math.floor((s % 3600) / 60)} 分`
+      : s >= 60
+        ? `${Math.floor(s / 60)} 分 ${s % 60} 秒`
+        : `${s} 秒`;
+
   const kpiCards = [
     { l: "今日比赛", v: kpis?.total_today ?? "—", t: `覆盖 ${leagues?.length ?? 0} 个赛事 · 实时` },
     { l: "AI 预测准确率 (7日)", v: kpis ? `${kpis.accuracy_7d}%` : "—", t: "胜平负方向命中" },
     { l: "模型 Brier Score", v: kpis?.brier_score ?? "—", t: "越低越好 · 优于随机 0.333" },
-    { l: "进行中", v: liveCount ?? kpis?.live_now ?? "—", t: connected ? "WebSocket 实时推送" : "REST 轮询兜底" },
+    {
+      l: "进行中",
+      v: liveCount ?? kpis?.live_now ?? "—",
+      t: linkOk
+        ? `实时推送中 · 心跳 ${beatAgo ?? "—"} 秒前`
+        : connected
+          ? "连接中，等待首帧…"
+          : "REST 轮询兜底",
+    },
   ];
 
   return (
@@ -148,9 +183,33 @@ export default function Dashboard() {
         {/* 比赛中心 */}
         <Panel
           title="⚡ 实时足球数据中心"
-          tag={connected ? "WebSocket 实时推送" : "REST 轮询"}
-          dot={connected ? "#22c58b" : "#f5b342"}
+          tag={linkOk ? `实时推送 · 心跳 ${beatAgo ?? "—"}s` : connected ? "连接中…" : "REST 轮询"}
+          dot={linkOk ? "#22c58b" : connected ? "#f5b342" : "#ff6b7a"}
         >
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2 text-[11px] text-sub">
+            <span className={`font-bold ${(liveCount ?? 0) > 0 ? "text-[#22c58b]" : "text-sub"}`}>
+              {liveCount == null ? "统计中…" : liveCount > 0 ? `● ${liveCount} 场进行中` : "○ 当前无进行中比赛"}
+            </span>
+            <span>
+              比分更新 {updAgo == null ? "—" : updAgo < 60 ? `${updAgo} 秒前` : `${Math.floor(updAgo / 60)} 分钟前`}
+            </span>
+            <span>
+              链路心跳 {beatAgo == null ? "—" : `${beatAgo} 秒前`}
+            </span>
+            {liveCount === 0 && (
+              <span className="font-bold text-[#9db9ff]">
+                {nextKick == null
+                  ? "● 暂无待开赛赛事"
+                  : cdSec != null && cdSec < 900
+                    ? `● 下一场 ${fmtCd(cdSec)}后开赛，届时自动进入实时推送`
+                    : `● 下一场 ${new Date(nextKick).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} 开赛`}
+              </span>
+            )}
+            {linkStale && (
+              <span className="font-bold text-[#ff6b7a]">● 心跳超时，正在重连…</span>
+            )}
+            <span className="ml-auto">后端每 20 秒刷一次进行中赛事 · 全量赛程 5 分钟</span>
+          </div>
           <div id="scheduled" className="flex scroll-mt-20 flex-wrap gap-1.5 px-4 pt-3">
             {TABS.map((t) => {
               const count =
@@ -228,7 +287,17 @@ export default function Dashboard() {
                 </div>
                 {tab === "live" && (
                   <div className="mt-2 text-xs text-sub">
-                    可切换到「即将开始」或「已结束」查看真实赛程与结果
+                    {nextKick != null ? (
+                      <>
+                        下一场{" "}
+                        <b className="text-[#9db9ff]">
+                          {new Date(nextKick).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                        </b>{" "}
+                        开赛（{cdSec != null ? fmtCd(cdSec) : "—"}后），开赛后比分每 20 秒刷新一次
+                      </>
+                    ) : (
+                      "55 个赛事源当前均无在打的比赛，可切换到「即将开始」查看真实赛程"
+                    )}
                   </div>
                 )}
               </div>
@@ -328,9 +397,13 @@ export default function Dashboard() {
               <div>Elo + Dixon-Coles + XGBoost <span className="float-right font-bold text-[#22c58b]">● 已加载</span></div>
               <div>
                 WebSocket 推送 5s
-                <span className={`float-right font-bold ${connected ? "text-[#22c58b]" : "text-[#ff6b7a]"}`}>
-                  {connected ? "● 已连接" : "● 未连接"}
+                <span className={`float-right font-bold ${linkOk ? "text-[#22c58b]" : connected ? "text-[#f5b342]" : "text-[#ff6b7a]"}`}>
+                  {linkOk ? `● 已连接 · 心跳 ${beatAgo ?? "—"}s` : connected ? "● 连接中…" : "● 未连接"}
                 </span>
+              </div>
+              <div>
+                直播快车道 20s
+                <span className="float-right font-bold text-[#22c58b]">● 运行中</span>
               </div>
               <div>REST 兜底轮询 30s <span className="float-right font-bold text-[#22c58b]">● 运行中</span></div>
             </div>

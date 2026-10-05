@@ -63,20 +63,42 @@ def run(cmd: list[str], cwd: Path, env_extra: dict[str, str] | None = None) -> N
     subprocess.run(cmd, cwd=str(cwd), env=env, check=True)
 
 
+def _next_cmd() -> list[str]:
+    """直接 `node node_modules/next/dist/bin/next build`，**不要走 npm.cmd**。
+
+    实测：走 `npm.cmd run build` 时，npm 起的中间 shell 会把宿主的 NODE_OPTIONS
+    fs-shim 带回来，next 打开 .next/trace 直接 EPERM，整轮构建崩掉；
+    直接调 node 二进制就没有这层，稳定通过。
+    """
+    nxt = FRONTEND / "node_modules" / "next" / "dist" / "bin" / "next"
+    node = shutil.which("node")
+    if not node:
+        import glob
+
+        hits = sorted(glob.glob(r"C:/Users/*/.workbuddy/binaries/node/versions/*/node.exe"))
+        if hits:
+            node = hits[-1]
+    if node and nxt.exists():
+        return [node, str(nxt), "build"]
+    return [_npm(), "run", "build"]
+
+
 def build_frontend() -> None:
     print("=" * 60)
     print("[1/3] 前端静态导出")
     marker = FRONTEND / ".desktop-export"
     marker.write_text("desktop export build marker", encoding="utf-8")
-    # 经验：next build 启动时会把 trace 写进 <cwd>/.next/trace（与 distDir 无关）。
-    # - .next 不存在时 next 自建会偶发 EPERM（safe-delete shim/杀软干扰）→ 预先建好
-    # - 不要整体挪走 .next：挪走后重建必触发 EPERM
+    # 经验（踩坑实录）：next build 启动时会把 trace 写进 <cwd>/.next/trace，
+    # **若该文件已存在则 open 报 EPERM，整轮构建直接崩**。
+    # 所以这里必须把它"挪走"，而不是按旧做法去 touch 预建（预建必崩）。
+    # 注意只挪 trace 一个文件，不要整体挪走 .next（会丢掉编译缓存，构建变慢）。
     dot_next = FRONTEND / ".next"
-    if not dot_next.is_dir():
-        dot_next.mkdir(parents=True, exist_ok=True)
-    (dot_next / "trace").touch(exist_ok=True)
+    dot_next.mkdir(parents=True, exist_ok=True)
+    trace = dot_next / "trace"
+    if trace.exists():
+        trace.rename(FRONTEND / f"trace_old_{time.strftime('%Y%m%d%H%M%S')}")
     try:
-        run([_npm(), "run", "build"], FRONTEND)
+        run(_next_cmd(), FRONTEND)
     finally:
         marker.unlink(missing_ok=True)
     if not (OUT / "index.html").exists():

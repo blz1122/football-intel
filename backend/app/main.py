@@ -146,8 +146,8 @@ async def lifespan(app: FastAPI):
                     ret = {}
                 finally:
                     db3.close()
-        # 每 12 轮（1 小时）用累积的真实赛果重算 Elo，
-        # 否则整个赛季的强度都不会更新
+                # 每 12 轮（1 小时）用累积的真实赛果重算 Elo，
+                # 否则整个赛季的强度都不会更新
                 if n % 12 == 1:
                     dbe2 = SessionLocal()
                     try:
@@ -184,7 +184,32 @@ async def lifespan(app: FastAPI):
                         dbr.close()
                     print(f"[espn] rosters#{n}: {rr}", flush=True)
 
+        def _live_loop():
+            """直播快车道：只刷进行中/即将开赛的比赛，20 秒一轮。
+
+            全量 sync() 要拉 55 个源（约 25 秒），只能 5 分钟跑一次；
+            比分靠它更新的话，看直播等于没有实时。这里只拉涉及的少数联赛，
+            配合 5 秒一轮的 WS 广播，比分才会真的跳。
+            """
+            from app.ingest import espn
+
+            time.sleep(15)  # 让首轮全量同步先跑
+            while True:
+                try:
+                    time.sleep(settings.LIVE_SYNC_INTERVAL)
+                    dbl = SessionLocal()
+                    try:
+                        r = espn.sync_live(dbl)
+                    finally:
+                        dbl.close()
+                    if r.get("live") or r.get("error"):
+                        print(f"[live] {r}", flush=True)
+                except Exception as e:
+                    print(f"[live] failed: {e}", flush=True)
+                    time.sleep(30)
+
         threading.Thread(target=_sync_loop, daemon=True).start()
+        threading.Thread(target=_live_loop, daemon=True).start()
     # Phase 4: WebSocket 广播循环改为在首个 WS 连接时启动（见 ws.ensure_broadcast_task）
     yield
 

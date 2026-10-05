@@ -36,8 +36,19 @@ export function useLiveSocket(subscribeAll = false, matchId?: number) {
   const [updates, setUpdates] = useState<Record<number, LiveSnapshot>>({});
   const [liveCount, setLiveCount] = useState<number | null>(null);
   const [connected, setConnected] = useState(false);
+  // 最近一帧服务端消息的时间戳：用来区分"连接正常但比分没变"和"链路已死"
+  const [lastMsgAt, setLastMsgAt] = useState<number | null>(null);
+  // 最近一次真正收到比分/分钟变化的时间（心跳帧不算）
+  const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
+  // 每秒自走一次，让"N 秒前刷新"能自己跳动
+  const [tick, setTick] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     let closed = false;
@@ -63,11 +74,13 @@ export function useLiveSocket(subscribeAll = false, matchId?: number) {
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
+          setLastMsgAt(Date.now());
           if (msg.type === "live_update") {
             setUpdates((prev) => ({
               ...prev,
               [msg.match_id]: msg.data as LiveSnapshot,
             }));
+            setLastUpdateAt(Date.now());
           } else if (msg.type === "live_count") {
             setLiveCount(msg.count);
           }
@@ -95,5 +108,5 @@ export function useLiveSocket(subscribeAll = false, matchId?: number) {
     };
   }, [subscribeAll, matchId]);
 
-  return { updates, liveCount, connected };
+  return { updates, liveCount, connected, lastMsgAt, lastUpdateAt, tick };
 }

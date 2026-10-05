@@ -13,8 +13,10 @@ node_modules/
 .next/
 .next-*/
 .next-old-*
+.next_old_*/
 .next-stale-*/
 .next-broken/
+trace_old_*
 out/
 *.tsbuildinfo
 .eslintcache
@@ -38,6 +40,8 @@ secrets/
 # 数据库
 *.db
 *.sqlite3
+*.db-wal
+*.db-shm
 pgdata/
 
 # IDE / OS

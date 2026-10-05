@@ -11,6 +11,19 @@ connect_args = (
     {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
 )
 engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
+
+if settings.DATABASE_URL.startswith("sqlite"):
+    # 全量同步线程 + 直播高频刷新线程 + 请求处理会并发写库。
+    # 默认 journal 模式下会直接抛 "database is locked"。
+    from sqlalchemy import event
+
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _rec):  # noqa: ANN001, ANN202
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=8000")   # 写冲突时最多等 8 秒
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.close()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 

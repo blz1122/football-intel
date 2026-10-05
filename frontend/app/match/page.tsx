@@ -171,7 +171,10 @@ function MatchPageInner() {
   const { data: shots } = usePolling(() => api.shotMap(id), 20000);
   const { data: mc } = usePolling(() => api.monteCarlo(id), 60000);
   const { data: report, error: reportErr } = usePolling(() => api.report(id), 20000);
-  const { updates, connected } = useLiveSocket(false, id);
+  const { updates, connected, lastUpdateAt, tick } = useLiveSocket(false, id);
+  // tick 每秒变化，让"X 秒前更新"自己走
+  const updAgo = lastUpdateAt == null ? null : Math.round((Date.now() - lastUpdateAt) / 1000);
+  void tick;
 
   // WebSocket 快照合并：分钟/比分/概率实时覆盖
   const m = useMemo(() => {
@@ -263,6 +266,21 @@ function MatchPageInner() {
             {m.status === "scheduled" ? "vs" : `${m.home_score} - ${m.away_score}`}
           </div>
           <div className="mt-2 flex justify-center"><StatusTag status={m.status} period={m.period} /></div>
+          <div className="mt-1.5 text-[11px] text-sub">
+            {m.status === "live" || m.status === "halftime" ? (
+              <>
+                <span className={connected ? "text-[#22c58b]" : "text-[#f5b342]"}>
+                  {connected ? "● 实时推送已连接" : "○ 实时推送未连接（20 秒 REST 轮询）"}
+                </span>
+                {" · "}
+                {updAgo == null ? "等待首次推送" : updAgo < 60 ? `${updAgo} 秒前更新` : `${Math.floor(updAgo / 60)} 分钟前更新`}
+              </>
+            ) : m.status === "finished" ? (
+              "比赛已结束 · 最终比分"
+            ) : (
+              "未开始 · 开赛后自动进入实时推送"
+            )}
+          </div>
         </div>
         <Link href={`/team/?id=${m.away_team.id}`} className="group flex flex-col items-center gap-2" title="查看球队详情">
           <span className="flex h-14 w-14 items-center justify-center rounded-full text-base font-extrabold text-white" style={{ background: m.away_team.color }}>

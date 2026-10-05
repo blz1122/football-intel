@@ -19,6 +19,7 @@
 import asyncio
 import contextlib
 import json
+import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -36,8 +37,6 @@ class ConnectionManager:
         self.latest: dict[int, dict] = {}
         self.last_count: int | None = None
         # 诊断：广播循环最近一次迭代的时间戳（system/status 暴露）
-        import time as _time
-
         self.last_beat: float = 0.0
 
     async def connect(self, ws: WebSocket) -> None:
@@ -190,25 +189,24 @@ async def _broadcast_loop() -> None:
                         alive = False
                         break
                     sent += 1
-                # 全局订阅者：仅在实时场次数变化时推送
-                if (
-                    alive
-                    and manager.subs.get(ws) is None
-                    and len(live_ids) != last_count
-                ):
+                # 实时场次数变化：所有客户端都推（单场订阅者也要知道"还有没有直播"）
+                if alive and len(live_ids) != last_count:
                     alive = await manager.send(
                         ws, {"type": "live_count", "count": len(live_ids)}
                     )
-                # 诊断心跳：每 6 轮（约 30s）一帧，验证环路可达
-                if alive and beats % 6 == 0 and manager.subs.get(ws) is None:
-                    alive = await manager.send(ws, {"type": "heartbeat", "beat": beats})
+                # 诊断心跳：每 4 轮（约 20s）一帧，发给**所有**客户端。
+                # 只发给全局订阅者的话，单场订阅者在比分不变时会长时间静默，
+                # 前端无法区分"连接正常但没变化"和"链路已死"。
+                if alive and beats % 4 == 0:
+                    alive = await manager.send(
+                        ws, {"type": "heartbeat", "beat": beats,
+                             "ts": time.time(), "live": len(live_ids)}
+                    )
                 if not alive:
                     manager.disconnect(ws)
             last_count = len(live_ids)
             manager.last_count = last_count
-            import time as _time
-
-            manager.last_beat = _time.time()
+            manager.last_beat = time.time()
         except Exception as e:  # 推送循环永不退出
             print(f"[ws] broadcast error: {e}")
         await asyncio.sleep(settings.WS_PUSH_INTERVAL)

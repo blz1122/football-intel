@@ -1387,9 +1387,17 @@ def _stats_payload(stats: dict[str, Any], home_id: str, away_id: str) -> dict[st
 
 _last_sync: dict[str, Any] = {"ok": None, "at": None, "matches": 0, "error": None}
 
+# 直播快车道的状态（前端用来判断「是没变化，还是链路死了」）
+_last_live: dict[str, Any] = {"ok": None, "at": None, "updated": 0,
+                              "live": 0, "matches": 0, "error": None}
+
 
 def last_sync() -> dict[str, Any]:
     return dict(_last_sync)
+
+
+def last_live() -> dict[str, Any]:
+    return dict(_last_live)
 
 
 def _fetch_all_scoreboards() -> dict[str, list[dict[str, Any]]]:
@@ -2202,6 +2210,70 @@ def _chunks(seq: list, size: int = 400):
     """分批：SQLite 对 SQL 变量数量有上限，IN(...) 一次别塞太多。"""
     for i in range(0, len(seq), size):
         yield seq[i:i + size]
+
+
+def sync_live(db: Session, ahead_minutes: int = 12) -> dict[str, Any]:
+    """高频刷新「进行中 / 刚开赛」的比赛（比分、分钟、状态）。
+
+    全量 sync() 要拉 55 个源（约 25 秒），做不到秒级，而看直播时
+    5 分钟才跳一次比分就等于没有实时。这里只拉**涉及到的少数联赛**，
+    20 秒一轮，成本可忽略，是真正的「直播快车道」。
+    """
+    from app.models import Match
+
+    res: dict[str, Any] = {"matches": 0, "leagues": 0, "updated": 0,
+                           "live": 0, "ok": False, "error": None}
+    try:
+        backfill_league_slugs(db)
+        now = datetime.now(timezone.utc)
+        rows = db.query(Match).filter(
+            Match.is_history.is_(False),
+            Match.provider == "espn",
+            Match.kickoff_at >= now - timedelta(hours=4),
+            Match.kickoff_at <= now + timedelta(minutes=ahead_minutes),
+        ).all()
+        res["matches"] = len(rows)
+        if not rows:
+            res["ok"] = True
+            _last_live.update({"ok": True, "at": now.isoformat(), "updated": 0,
+                               "live": 0, "matches": 0, "error": None})
+            return res
+        slugs = sorted({m.league.slug for m in rows if m.league and m.league.slug})
+        if not slugs:
+            res["ok"] = True
+            return res
+        boards: dict[str, list[dict[str, Any]]] = {}
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for slug, rr in zip(slugs, pool.map(_safe_scoreboard, slugs)):
+                if rr:
+                    boards[slug] = rr
+        res["leagues"] = len(boards)
+        by_event: dict[str, dict[str, Any]] = {}
+        for rr in boards.values():
+            for r in rr:
+                by_event[r["event_id"]] = r
+        for m in rows:
+            r = by_event.get(m.provider_event_id or "")
+            if not r:
+                continue
+            m.status_override = r["status"]
+            m.minute_override = r["minute"]
+            m.score_home = r["score_home"]
+            m.score_away = r["score_away"]
+            res["updated"] += 1
+            if r["status"] in ("live", "halftime"):
+                res["live"] += 1
+        db.commit()
+        res["ok"] = True
+    except Exception as e:
+        db.rollback()
+        res["error"] = str(e)
+    _last_live.update({"ok": res.get("ok"), "at": datetime.now(timezone.utc).isoformat(),
+                       "updated": res.get("updated", 0),
+                       "live": res.get("live", 0),
+                       "matches": res.get("matches", 0),
+                       "error": res.get("error")})
+    return res
 
 
 def purge_mock_data(db: Session) -> dict[str, Any]:

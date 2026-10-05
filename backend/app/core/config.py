@@ -31,6 +31,8 @@ class Settings:
     # 真实数据接入（ESPN 公开接口，无需 API key）：开启后同步真实赛程/比分/统计
     REAL_DATA: bool = os.getenv("REAL_DATA", "1").lower() in ("1", "true", "yes")
     REAL_SYNC_INTERVAL: int = int(os.getenv("REAL_SYNC_INTERVAL", "300"))  # 秒
+    # 直播快车道：只刷「进行中/即将开赛」的少数联赛，秒级跳动靠它
+    LIVE_SYNC_INTERVAL: int = int(os.getenv("LIVE_SYNC_INTERVAL", "20"))  # 秒
     # 比赛列表的未来窗口（天）。欧冠/世预赛等常在 10 天后开赛，窗口太小会漏。
     MATCH_WINDOW_DAYS: int = int(os.getenv("MATCH_WINDOW_DAYS", "14"))
     # 单轮同步拉取比赛详情（summary）的数量上限

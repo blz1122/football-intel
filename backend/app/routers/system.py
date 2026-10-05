@@ -24,14 +24,22 @@ def _data_source() -> dict:
             Match.provider == "espn", Match.is_history.is_(False)
         ).count()
         total = db.query(Match).count()
+        live_n = db.query(Match).filter(
+            Match.is_history.is_(False),
+            Match.status_override.in_(("live", "halftime")),
+        ).count()
     finally:
         db.close()
     sync = espn.last_sync()
+    live = espn.last_live()
     if real:
         return {
             "mode": "real", "provider": "ESPN", "label": "真实数据 · ESPN",
             "real_matches": real, "total_matches": total,
             "last_sync": sync.get("at"), "sync_ok": sync.get("ok"),
+            "live_matches": live_n,
+            "last_live": live.get("at"), "live_ok": live.get("ok"),
+            "live_updated": live.get("updated"), "live_error": live.get("error"),
         }
     return {
         "mode": "mock", "provider": "simulator", "label": "演示模式 · 模拟数据",
